@@ -34,6 +34,7 @@ import { INITIAL_FRIENDS } from "./constants/users";
 import { STORAGE_KEYS } from "./constants/storage";
 import { api } from "./api";
 import RankingPage from "./pages/Ranking"; // 파일명 맞춰서
+import KakaoCallbackPage from "./pages/KakaoCallback";
 
 function App() {
   // ===== State =====
@@ -510,14 +511,15 @@ function App() {
       const urlParams = new URLSearchParams(window.location.search);
       const kakaoCode = urlParams.get("code");
       
-      if (kakaoCode && window.location.pathname === "/") {
+      if (kakaoCode) {
         console.log("[App] 카카오 인가 코드 감지, 백엔드로 전송 중...");
         try {
           // 타임아웃 설정 (10초)
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 10000);
           
-          const response = await fetch("/api/auth/kakao/callback", {
+          const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
+          const response = await fetch(`${API_BASE_URL}/auth/kakao/callback`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ code: kakaoCode }),
