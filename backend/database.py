@@ -115,6 +115,10 @@ def _rebuild_day_missions(conn):
 
 
 def ensure_day_mission_schema():
+    # PostgreSQL 등 다른 DB에서는 PRAGMA 사용 불가하므로 SQLite에서만 실행
+    if engine.dialect.name != "sqlite":
+        return
+
     inspector = inspect(engine)
     if "day_missions" not in inspector.get_table_names():
         return
