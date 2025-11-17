@@ -1,7 +1,7 @@
 # JWT 인증 및 비밀번호 해싱
 from datetime import datetime, timedelta
 from typing import Optional
-from jose import JWTError, jwt
+import jwt
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -83,8 +83,8 @@ def get_current_user(
         if token_type != "access":
             print(f"[DEBUG] ❌ 토큰 검증 실패: user_id={user_id}, token_type={token_type}")
             raise credentials_exception
-    except JWTError as e:
-        print(f"[DEBUG] ❌ JWTError 발생: {repr(e)}")
+    except jwt.InvalidTokenError as e:
+        print(f"[DEBUG] ❌ JWT InvalidTokenError 발생: {repr(e)}")
         raise credentials_exception
     except Exception as e:
         print(f"[DEBUG] ❌ 예상치 못한 에러: {repr(e)}")

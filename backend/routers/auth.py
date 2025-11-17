@@ -16,7 +16,7 @@ from auth import (
     ACCESS_TOKEN_EXPIRE_MINUTES
 )
 from datetime import timedelta
-from jose import JWTError, jwt
+import jwt
 
 router = APIRouter(prefix="/auth", tags=["인증"])
 
@@ -78,7 +78,7 @@ async def refresh_token(
         
         if token_type != "refresh":
             raise credentials_exception
-    except JWTError:
+    except jwt.InvalidTokenError:
         raise credentials_exception
     
     user = db.query(User).filter(User.id == user_id).first()
