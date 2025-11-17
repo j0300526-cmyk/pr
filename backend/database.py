@@ -12,30 +12,20 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-# .env 설정 읽기용 Settings 클래스
-class Settings(BaseSettings):
-    # DB URL만 이 Settings에서 쓸 거야
-    database_url: str = os.getenv("DATABASE_URL", "sqlite:///./zero_waste.db")
+# 환경 변수에서 직접 DATABASE_URL 읽기
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./zero_waste.db")
 
-    # pydantic v2 스타일 설정
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        extra="ignore",   # <<<< 이거 때문에 secret_key 같은 추가 값들은 무시됨
-    )
-
-
-# Settings 인스턴스 생성 (.env 자동 로드)
-settings = Settings()
+print(f"[DEBUG] DATABASE_URL: {DATABASE_URL[:50]}..." if len(DATABASE_URL) > 50 else f"[DEBUG] DATABASE_URL: {DATABASE_URL}")
 
 # SQLite 사용 시 check_same_thread=False 필요
-if settings.database_url.startswith("sqlite"):
+if DATABASE_URL.startswith("sqlite"):
     engine = create_engine(
-        settings.database_url,
+        DATABASE_URL,
         connect_args={"check_same_thread": False},
         echo=True,  # 개발 시 SQL 쿼리 로그 출력
     )
 else:
-    engine = create_engine(settings.database_url, echo=True)
+    engine = create_engine(DATABASE_URL, echo=True)
 
 # 세션 팩토리
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
