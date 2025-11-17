@@ -47,7 +47,7 @@ export default function HomePage({
   const [personalMissionChecked, setPersonalMissionChecked] = React.useState<Record<string, boolean>>({});
 
   const getMissionKey = (missionEntry: PersonalMissionEntry) =>
-    missionEntry.dayMissionPk?.toString() || `${missionEntry.missionId}::${missionEntry.submission}`;
+    `${missionEntry.missionId}::${missionEntry.submission}`;
 
   const handleCheck = (id: number) =>
     setCheckedMissions((prev) => ({ ...prev, [id]: !prev[id] }));
