@@ -3,7 +3,7 @@
 # 데이터베이스 연결 및 세션 관리
 # =======================
 
-from sqlalchemy import create_engine, text, inspect
+from sqlalchemy import create_engine, text, inspect, event, MetaData
 from sqlalchemy.orm import sessionmaker, declarative_base
 from pydantic_settings import BaseSettings, SettingsConfigDict
 import os
@@ -31,12 +31,24 @@ else:
         connect_args={"options": "-c search_path=public"},
         echo=True
     )
+    # 추가 안전장치: 모든 커넥션에 대해 search_path 설정
+    @event.listens_for(engine, "connect")
+    def set_search_path(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("SET search_path TO public")
+        cursor.close()
+    # 스키마가 없을 경우 생성
+    with engine.connect() as conn:
+        conn.execute(text("CREATE SCHEMA IF NOT EXISTS public"))
+        conn.execute(text("SET search_path TO public"))
 
 # 세션 팩토리
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+metadata = MetaData(schema="public") if not DATABASE_URL.startswith("sqlite") else MetaData()
+
 # Base 모델
-Base = declarative_base()
+Base = declarative_base(metadata=metadata)
 
 
 # 스키마 보조 함수
