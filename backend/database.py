@@ -25,7 +25,12 @@ if DATABASE_URL.startswith("sqlite"):
         echo=True,  # 개발 시 SQL 쿼리 로그 출력
     )
 else:
-    engine = create_engine(DATABASE_URL, echo=True)
+    # PostgreSQL 사용 시 public 스키마 명시적 설정
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args={"options": "-c search_path=public"},
+        echo=True
+    )
 
 # 세션 팩토리
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
