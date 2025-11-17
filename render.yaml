@@ -1,0 +1,32 @@
+services:
+  # FastAPI 백엔드 서비스
+  - type: web
+    name: zero-waste-api
+    runtime: python
+    buildCommand: "cd backend && pip install -r requirements.txt"
+    startCommand: "cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: zero-waste-db
+          property: connectionString
+      - key: CORS_ORIGINS
+        sync: false
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: KAKAO_CLIENT_ID
+        sync: false
+      - key: KAKAO_REDIRECT_URI
+        sync: false
+      - key: ENV
+        value: production
+
+databases:
+  - name: zero-waste-db
+    databaseName: zero_waste_db
+    user: zero_waste_user
+
