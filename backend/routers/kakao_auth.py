@@ -98,10 +98,17 @@ async def kakao_callback(request: KakaoCallbackRequest, db: Session = Depends(ge
             return TokenResponse(access=access_token_jwt, refresh=refresh_token_jwt)
             
         except httpx.HTTPStatusError as e:
+            error_detail = "Unknown error"
+            try:
+                error_detail = e.response.json()
+            except:
+                error_detail = e.response.text
             print(f"[ERROR] 카카오 API 오류: {e}")
+            print(f"[ERROR] 카카오 응답: {error_detail}")
+            print(f"[DEBUG] 요청 파라미터: client_id={KAKAO_CLIENT_ID[:10]}..., redirect_uri={KAKAO_REDIRECT_URI}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"카카오 로그인 실패: {str(e)}"
+                detail=f"카카오 로그인 실패: {error_detail}"
             )
         except Exception as e:
             print(f"[ERROR] 카카오 로그인 처리 중 오류: {e}")
