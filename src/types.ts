@@ -4,6 +4,8 @@ export interface Mission {
   name: string;
   participants: string[];
   color: string;
+  // 완료 상태 (옵셔널, 서버에서 불러올 때 포함)
+  checked?: boolean;
 }
 export interface WeekDay {
   num: number;
@@ -30,6 +32,10 @@ export interface PersonalMissionEntry {
   // 주간 루틴 관련 필드 (옵셔널)
   is_weekly_routine?: boolean;
   routine_id?: number;
+  // 완료 상태 (옵셔널, 서버에서 불러올 때 포함)
+  completed?: boolean;
+  // dayMissionId (일일 미션의 경우, API 호출에 필요)
+  dayMissionId?: number;
 }
 
 export type MissionsRecord = Record<string, PersonalMissionEntry[]>;

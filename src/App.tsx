@@ -1,5 +1,5 @@
 // 앱 전역 상태와 페이지 전환을 관리하는 루트 컴포넌트
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import HomePage from "./pages/Home";
 import GroupManagePage from "./pages/GroupManage";
 import InvitePage from "./pages/Invite";
@@ -58,6 +58,9 @@ function App() {
   const pkMapRef = useRef<Map<string, number>>(new Map());
   const makeMissionKey = (missionId: number, submission: string) =>
     `${missionId}::${submission}`;
+  
+  // API 호출 중복 방지를 위한 로딩 상태 추적
+  const loadingDatesRef = useRef<Set<string>>(new Set());
 
   const [activeTab, setActiveTab] = useState<"personal" | "group">("personal");
   const [selectedGroupMission, setSelectedGroupMission] =
@@ -102,7 +105,15 @@ function App() {
     setSelectedDate((prev) => prev ?? todayDay?.fullDate ?? days[0]?.fullDate ?? null);
   };
 
-  const loadDay = async (dateStr: string) => {
+  const loadDay = useCallback(async (dateStr: string) => {
+    // 중복 호출 방지: 이미 로딩 중인 날짜는 무시
+    if (loadingDatesRef.current.has(dateStr)) {
+      return;
+    }
+    
+    // 로딩 상태 추가
+    loadingDatesRef.current.add(dateStr);
+    
     // 날짜 변경 시 즉시 빈 배열로 초기화하여 이전 날짜 미션이 보이지 않도록 함
     setMissions((prev) => ({ ...prev, [dateStr]: [] }));
     
@@ -122,6 +133,8 @@ function App() {
                 submission: x?.sub_mission || fallbackName,
                 is_weekly_routine: x?.is_weekly_routine || false,
                 routine_id: x?.routine_id || undefined,
+                completed: x?.completed || false,
+                dayMissionId: x?.id ? Number(x.id) : undefined,
               };
             })
           : [];
@@ -137,10 +150,13 @@ function App() {
               : x?.mission?.category ||
                 `미션-${x?.mission?.id ?? ""}`);
           const submission = x?.sub_mission || fallbackName;
-          map.set(
-            makeMissionKey(Number(x?.mission?.id), submission),
-            Number(x?.id)
-          );
+          // dayMissionId가 있는 경우에만 매핑 (주간 루틴은 id가 없을 수 있음)
+          if (x?.id) {
+            map.set(
+              makeMissionKey(Number(x?.mission?.id), submission),
+              Number(x.id)
+            );
+          }
         });
       }
       pkMapRef.current = map;
@@ -148,8 +164,11 @@ function App() {
       // 실패해도 빈 배열로 유지하여 이전 날짜 미션이 보이지 않도록 함
       setMissions((prev) => ({ ...prev, [dateStr]: [] }));
       showError("해당 날짜의 미션을 불러오지 못했어요");
+    } finally {
+      // 로딩 상태 제거
+      loadingDatesRef.current.delete(dateStr);
     }
-  };
+  }, []);
 
   const fetchAvailableMissions = async () => {
     try {
@@ -553,6 +572,41 @@ function App() {
     }
   };
 
+  const createGroup = async (name: string, color: string) => {
+    try {
+      const { groupMissionApi } = await import("./api/groupMission");
+      
+      // 그룹 생성
+      const newGroup = await groupMissionApi.createGroup(name, color);
+      
+      // 생성 후 자동으로 참여
+      const joinedGroup = await groupMissionApi.joinGroup(newGroup.id);
+      
+      // 내 그룹 목록에 추가
+      const next = [...myGroupMissions, joinedGroup];
+      setMyGroupMissions(next);
+      saveMyGroups(next);
+      
+      // 추천 그룹 목록 새로고침
+      try {
+        const recommended = await groupMissionApi.getRecommended();
+        setRecommendedGroupMissions(recommended);
+      } catch (err) {
+        console.warn("추천 그룹 목록 새로고침 실패", err);
+      }
+      
+      showError("그룹이 생성되고 참여되었어요!");
+    } catch (error: any) {
+      const status = (error as any)?.status;
+      if (status === 400) {
+        showError(error.message || "그룹 생성 조건을 만족하지 않습니다.");
+      } else {
+        showError(error.message || "그룹 생성에 실패했어요");
+      }
+      throw error;
+    }
+  };
+
   const logout = async () => {
     try {
       const { authApi } = await import("./api");
@@ -726,7 +780,7 @@ function App() {
 }, [isAuthed]);
 
 
-  // 날짜 변경 시 해당 날짜 미션 로드
+  // 날짜 변경 시 해당 날짜 미션 로드 및 그룹 미션 체크 상태 불러오기
   useEffect(() => {
     if (selectedDate && isAuthed) {
       // 날짜가 변경되면 즉시 해당 날짜의 미션을 초기화
@@ -738,8 +792,20 @@ function App() {
         return prev;
       });
       loadDay(selectedDate);
+      
+      // 그룹 미션 체크 상태 불러오기
+      const loadGroupMissions = async () => {
+        try {
+          const { groupMissionApi } = await import("./api/groupMission");
+          const groups = await groupMissionApi.getMyGroups(selectedDate);
+          setMyGroupMissions(groups);
+        } catch (error) {
+          console.error("그룹 미션 체크 상태 불러오기 실패:", error);
+        }
+      };
+      loadGroupMissions();
     }
-  }, [selectedDate, isAuthed]);
+  }, [selectedDate, isAuthed, loadDay]);
 
   // 모달 열릴 때 모든 미션으로 초기화
   useEffect(() => {
@@ -794,9 +860,10 @@ function App() {
               formatDate={formatSelectedDate}
               isToday={isTodayDate}
               hasMissions={hasMissions}
-              currentMissions={
-                selectedDate ? missions[selectedDate] || [] : []
-              }
+              currentMissions={useMemo(() => 
+                selectedDate ? missions[selectedDate] || [] : [],
+                [selectedDate, missions]
+              )}
               allAvailableMissions={allAvailableMissions}
               deleteMission={deleteMission}
               setShowAddMission={setShowAddMission}
@@ -804,6 +871,7 @@ function App() {
               setSelectedGroupMission={setSelectedGroupMission}
               currentStreak={currentStreak}
               onProfileClick={() => setCurrentPage("mypage")}
+              loadDay={loadDay}
             />
           )}
 
@@ -815,6 +883,7 @@ function App() {
               joinGroup={joinGroup}
               setSelectedGroupMission={setSelectedGroupMission}
               setLeaveTarget={setLeaveTarget}
+              onCreateGroup={createGroup}
             />
           )}
 

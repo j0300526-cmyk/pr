@@ -1,5 +1,5 @@
 # 그룹 미션 라우터
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func
 from database import get_db
@@ -7,7 +7,7 @@ from models import GroupMission, GroupMember, GroupMissionCheck, User
 from schemas import GroupMissionResponse, GroupMissionCheckRequest, GroupMissionCreate
 from auth import get_current_user
 from datetime import date, datetime
-from typing import List
+from typing import List, Optional
 
 router = APIRouter(prefix="/group-missions", tags=["그룹 미션"])
 
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/group-missions", tags=["그룹 미션"])
 MAX_MEMBERS_PER_GROUP = 3
 MAX_GROUPS_PER_USER = 2
 
-def group_mission_to_response(group: GroupMission, db: Session) -> GroupMissionResponse:
+def group_mission_to_response(group: GroupMission, db: Session, checked: Optional[bool] = None) -> GroupMissionResponse:
     """GroupMission 모델을 응답 스키마로 변환"""
     # 참여자 이름 목록
     participants = [member.user.name for member in group.members]
@@ -32,20 +32,44 @@ def group_mission_to_response(group: GroupMission, db: Session) -> GroupMissionR
         color=group.color,
         participants=participants,
         total_score=total_score * 2,  # 그룹 미션은 2점
-        member_count=len(participants)
+        member_count=len(participants),
+        checked=checked
     )
 
 @router.get("/my", response_model=List[GroupMissionResponse])
 async def get_my_groups(
+    date: Optional[str] = Query(None, description="날짜 (YYYY-MM-DD 형식, 선택적)"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """내가 참여 중인 그룹 미션 목록"""
+    """내가 참여 중인 그룹 미션 목록 (선택적 날짜별 체크 상태 포함)"""
     memberships = db.query(GroupMember).filter(
         GroupMember.user_id == current_user.id
     ).all()
     
     groups = [membership.group_mission for membership in memberships]
+    
+    # 날짜가 제공된 경우 각 그룹의 체크 상태 포함
+    if date:
+        try:
+            target_date = datetime.strptime(date, "%Y-%m-%d").date()
+            result = []
+            for group in groups:
+                check = db.query(GroupMissionCheck).filter(
+                    and_(
+                        GroupMissionCheck.group_mission_id == group.id,
+                        GroupMissionCheck.user_id == current_user.id,
+                        GroupMissionCheck.date == target_date
+                    )
+                ).first()
+                checked_status = check.completed if check else False
+                result.append(group_mission_to_response(group, db, checked=checked_status))
+            return result
+        except ValueError:
+            # 날짜 형식이 잘못된 경우 체크 상태 없이 반환
+            pass
+    
+    # 날짜가 없거나 파싱 실패 시 체크 상태 없이 반환
     return [group_mission_to_response(group, db) for group in groups]
 
 

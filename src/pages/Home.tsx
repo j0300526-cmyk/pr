@@ -2,6 +2,9 @@ import React from "react";
 import { Plus, X } from "lucide-react";
 import { CatalogMission, Mission, PersonalMissionEntry, WeekDay } from "../types";
 import { isTodayMonday } from "../utils/date";
+import { dayMissionApi } from "../api/dayMission";
+import { groupMissionApi } from "../api/groupMission";
+import { api } from "../api";
 
 interface Props {
   userName: string;
@@ -22,6 +25,7 @@ interface Props {
   setSelectedGroupMission: (m: Mission) => void;
   currentStreak: number;
   onProfileClick?: () => void;
+  loadDay?: (dateStr: string) => Promise<void>;
 }
 
 export default function HomePage({
@@ -42,6 +46,7 @@ export default function HomePage({
   myGroupMissions,
   currentStreak,
   onProfileClick,
+  loadDay,
 }: Props) {
   const [checkedMissions, setCheckedMissions] = React.useState<Record<number, boolean>>({});
   const [checkedParticipants, setCheckedParticipants] = React.useState<Record<string, boolean>>({});
@@ -50,23 +55,120 @@ export default function HomePage({
   const getMissionKey = (missionEntry: PersonalMissionEntry) =>
     `${missionEntry.missionId}::${missionEntry.submission}`;
 
-  const handleCheck = (id: number) =>
-    setCheckedMissions((prev) => ({ ...prev, [id]: !prev[id] }));
+  const handleCheck = async (id: number) => {
+    if (!selectedDate) return;
+    
+    const currentChecked = !!checkedMissions[id];
+    const newChecked = !currentChecked;
+
+    // 로컬 상태 먼저 업데이트 (낙관적 업데이트)
+    setCheckedMissions((prev) => ({ ...prev, [id]: newChecked }));
+
+    try {
+      await groupMissionApi.checkGroupMission(id, selectedDate, newChecked);
+    } catch (error) {
+      // 실패 시 로컬 상태 롤백
+      setCheckedMissions((prev) => ({ ...prev, [id]: currentChecked }));
+      console.error("그룹 미션 체크 상태 업데이트 실패:", error);
+    }
+  };
 
   const handleParticipantCheck = (missionId: number, name: string) => {
     const key = `${missionId}-${name}`;
     setCheckedParticipants((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const handlePersonalMissionCheck = (missionEntry: PersonalMissionEntry) => {
+  const handlePersonalMissionCheck = async (missionEntry: PersonalMissionEntry) => {
+    if (!selectedDate) return;
+    
     const key = getMissionKey(missionEntry);
-    setPersonalMissionChecked((prev) => ({ ...prev, [key]: !prev[key] }));
+    const currentChecked = !!personalMissionChecked[key];
+    const newChecked = !currentChecked;
+
+    // 로컬 상태 먼저 업데이트 (낙관적 업데이트)
+    setPersonalMissionChecked((prev) => ({ ...prev, [key]: newChecked }));
+
+    try {
+      // 주간 루틴인 경우 day_missions에 해당 날짜 미션 추가/삭제
+      if (missionEntry.is_weekly_routine) {
+        if (newChecked) {
+          // 체크: day_missions에 해당 날짜 미션 추가
+          await api(`/days/${selectedDate}/missions`, {
+            method: "POST",
+            body: JSON.stringify({
+              mission_id: missionEntry.missionId,
+              submission: missionEntry.submission,
+            }),
+          });
+        } else {
+          // 체크 해제: day_missions에서 해당 날짜 미션 삭제
+          // dayMissionId가 있으면 삭제, 없으면 missionId + submission으로 찾아서 삭제
+          if (missionEntry.dayMissionId) {
+            await api(`/days/${selectedDate}/missions/${missionEntry.dayMissionId}`, {
+              method: "DELETE",
+            });
+          } else {
+            // dayMissionId가 없으면 서버에서 찾아서 삭제
+            const dayMissions = await dayMissionApi.getDayMissions(selectedDate);
+            const targetMission = dayMissions.find(
+              (dm) =>
+                dm.mission.id === missionEntry.missionId &&
+                dm.sub_mission === missionEntry.submission
+            );
+            if (targetMission) {
+              await dayMissionApi.deleteMission(selectedDate, targetMission.id);
+            }
+          }
+        }
+        // 주간 루틴 체크 후 미션 목록 다시 불러오기
+        if (loadDay && selectedDate) {
+          await loadDay(selectedDate);
+        }
+      } else {
+        // 일일 미션인 경우 toggleComplete API 사용
+        if (missionEntry.dayMissionId) {
+          await dayMissionApi.toggleComplete(
+            selectedDate,
+            missionEntry.dayMissionId,
+            newChecked
+          );
+          // 일일 미션 체크 후 미션 목록 다시 불러오기 (completed 상태 업데이트)
+          if (loadDay && selectedDate) {
+            await loadDay(selectedDate);
+          }
+        }
+      }
+    } catch (error) {
+      // 실패 시 로컬 상태 롤백
+      setPersonalMissionChecked((prev) => ({ ...prev, [key]: currentChecked }));
+      console.error("체크 상태 업데이트 실패:", error);
+    }
   };
 
-  // 날짜나 탭이 변경될 때만 체크 상태 초기화
+  // 날짜나 탭이 변경될 때 서버에서 불러온 completed 상태로 초기화
   React.useEffect(() => {
-    setPersonalMissionChecked({});
-  }, [selectedDate, activeTab]);
+    if (selectedDate && activeTab === "personal") {
+      const checkedState: Record<string, boolean> = {};
+      currentMissions.forEach((missionEntry) => {
+        const key = getMissionKey(missionEntry);
+        checkedState[key] = missionEntry.completed || false;
+      });
+      setPersonalMissionChecked(checkedState);
+    } else {
+      setPersonalMissionChecked({});
+    }
+    
+    // 그룹 미션 탭일 때 체크 상태 초기화
+    if (selectedDate && activeTab === "group") {
+      const checkedState: Record<number, boolean> = {};
+      myGroupMissions.forEach((mission) => {
+        checkedState[mission.id] = mission.checked || false;
+      });
+      setCheckedMissions(checkedState);
+    } else if (activeTab !== "group") {
+      setCheckedMissions({});
+    }
+  }, [selectedDate, activeTab, currentMissions, myGroupMissions]);
 
   return (
     <div className="px-6 py-6 rounded-3xl">

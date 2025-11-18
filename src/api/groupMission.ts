@@ -47,7 +47,31 @@ export const groupMissionApi = {
   },
 
   // 내가 속한 그룹들 조회
-  getMyGroups: async (): Promise<GroupMission[]> => {
-    return request("/group-missions/my");
+  getMyGroups: async (date?: string): Promise<GroupMission[]> => {
+    const url = date ? `/group-missions/my?date=${date}` : "/group-missions/my";
+    return request(url);
+  },
+
+  // 그룹 미션 완료 체크
+  checkGroupMission: async (
+    groupId: number,
+    dateStr: string,
+    completed: boolean
+  ): Promise<void> => {
+    return request(`/group-missions/${groupId}/check`, {
+      method: "POST",
+      body: JSON.stringify({ date: dateStr, completed }),
+    });
+  },
+
+  // 그룹 미션 생성
+  createGroup: async (
+    name: string,
+    color: string = "bg-blue-300"
+  ): Promise<GroupMission> => {
+    return request("/group-missions", {
+      method: "POST",
+      body: JSON.stringify({ name, color }),
+    });
   },
 };

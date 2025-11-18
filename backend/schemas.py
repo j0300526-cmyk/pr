@@ -94,6 +94,7 @@ class GroupMissionResponse(GroupMissionBase):
     participants: List[str]  # 사용자 이름 목록
     total_score: Optional[int] = 0
     member_count: int
+    checked: Optional[bool] = None  # 날짜별 체크 상태 (선택적)
     
     class Config:
         from_attributes = True
