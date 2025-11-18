@@ -20,10 +20,18 @@ app = FastAPI(
 )
 
 # CORS 설정
-CORS_ORIGINS = os.getenv(
-    "CORS_ORIGINS",
-    "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000"
-).split(",")
+_default_cors_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "https://zero-lime-two.vercel.app",  # Vercel 배포 도메인 (프로덕션)
+]
+
+env_cors_origins = os.getenv("CORS_ORIGINS")
+if env_cors_origins:
+    CORS_ORIGINS = [origin.strip() for origin in env_cors_origins.split(",") if origin.strip()]
+else:
+    CORS_ORIGINS = _default_cors_origins
 
 app.add_middleware(
     CORSMiddleware,
