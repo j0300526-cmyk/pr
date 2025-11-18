@@ -112,6 +112,14 @@ class GroupMissionCheckRequest(BaseModel):
     date: date
     completed: bool
 
+# ===== 완료 요약 =====
+class DayCompletionSummary(BaseModel):
+    date: date
+    total_missions: int
+    completed_missions: int
+    completion_rate: float
+    is_day_perfectly_complete: bool
+
 # ===== 친구/초대 =====
 class FriendResponse(BaseModel):
     id: int

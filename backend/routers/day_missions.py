@@ -1,15 +1,23 @@
 # 날짜별 미션 라우터
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from database import get_db
 from models import DayMission, CatalogMission, User, WeeklyPersonalRoutine
-from schemas import DayMissionResponse, DayMissionCreate, DayMissionUpdate, CatalogMissionResponse, DayMissionBatchCreateResponse
+from schemas import (
+    DayMissionResponse,
+    DayMissionCreate,
+    DayMissionUpdate,
+    CatalogMissionResponse,
+    DayMissionBatchCreateResponse,
+    DayCompletionSummary,
+)
 from auth import get_current_user
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 import json
 import os
+from typing import List, Optional
 
 # KST(Asia/Seoul) 타임존 설정
 KST = ZoneInfo("Asia/Seoul")
@@ -395,4 +403,87 @@ async def toggle_complete(
     )
     
     return day_mission
+
+
+@router.get("/week-summary", response_model=List[DayCompletionSummary])
+async def get_week_summary(
+    date_str: Optional[str] = Query(None, description="기준 날짜 (YYYY-MM-DD, 기본값=오늘)"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """특정 주간(월~일)의 완료 현황 요약"""
+    if date_str:
+        try:
+            target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)",
+            )
+    else:
+        target_date = datetime.now(KST).date()
+
+    week_start = get_monday_of_week(target_date)
+    sunday = get_sunday_of_week(week_start)
+
+    day_missions = (
+        db.query(DayMission)
+        .filter(
+            and_(
+                DayMission.user_id == current_user.id,
+                DayMission.date >= week_start,
+                DayMission.date <= sunday,
+            )
+        )
+        .all()
+    )
+
+    missions_by_date = {}
+    for mission in day_missions:
+        missions_by_date.setdefault(mission.date, []).append(mission)
+
+    weekly_routines = (
+        db.query(WeeklyPersonalRoutine)
+        .filter(
+            and_(
+                WeeklyPersonalRoutine.user_id == current_user.id,
+                WeeklyPersonalRoutine.week_start_date == week_start,
+            )
+        )
+        .all()
+    )
+
+    summaries: List[DayCompletionSummary] = []
+    current_date = week_start
+    while current_date <= sunday:
+        day_list = missions_by_date.get(current_date, [])
+        total_missions = len(day_list)
+        completed_missions = sum(1 for mission in day_list if mission.completed)
+
+        existing_keys = {(mission.mission_id, mission.sub_mission) for mission in day_list}
+
+        for routine in weekly_routines:
+            if routine.start_date <= current_date <= sunday:
+                routine_key = (routine.mission_id, routine.sub_mission)
+                if routine_key not in existing_keys:
+                    total_missions += 1
+
+        completion_rate = (
+            completed_missions / total_missions if total_missions > 0 else 0.0
+        )
+        is_perfect = total_missions > 0 and completed_missions == total_missions
+
+        summaries.append(
+            DayCompletionSummary(
+                date=current_date,
+                total_missions=total_missions,
+                completed_missions=completed_missions,
+                completion_rate=completion_rate,
+                is_day_perfectly_complete=is_perfect,
+            )
+        )
+
+        current_date += timedelta(days=1)
+
+    return summaries
 

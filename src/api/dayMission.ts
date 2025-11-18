@@ -1,6 +1,6 @@
 // 날짜별 미션 API
 import { request } from "./request";
-import type { DayMission } from "./types";
+import type { DayMission, DayCompletionSummary } from "./types";
 
 export const dayMissionApi = {
   // 특정 날짜의 미션 목록 조회
@@ -37,6 +37,12 @@ export const dayMissionApi = {
       method: "PATCH",
       body: JSON.stringify({ completed }),
     });
+  },
+
+  // 주간 완료 현황 조회
+  getWeekSummary: async (dateStr?: string): Promise<DayCompletionSummary[]> => {
+    const query = dateStr ? `?date=${dateStr}` : "";
+    return request<DayCompletionSummary[]>(`/days/week-summary${query}`);
   },
 };
 

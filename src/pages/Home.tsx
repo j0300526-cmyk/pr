@@ -16,7 +16,7 @@ interface Props {
   setActiveTab: (t: "personal" | "group") => void;
   formatDate: () => string;
   isToday: (iso: string | null) => boolean;
-  hasMissions: (dateStr: string) => boolean;
+  isPerfectDay: (dateStr: string) => boolean;
   currentMissions: PersonalMissionEntry[];
   allAvailableMissions: CatalogMission[];
   deleteMission: (index: number) => void;
@@ -38,7 +38,7 @@ export default function HomePage({
   setActiveTab,
   formatDate,
   isToday,
-  hasMissions,
+  isPerfectDay,
   currentMissions,
   allAvailableMissions,
   deleteMission,
@@ -224,14 +224,14 @@ export default function HomePage({
             className={`flex flex-col items-center justify-center w-full h-20 rounded-3xl transition-all relative ${
               selectedDate === day.fullDate
                 ? "bg-green-300 text-white"
-                : hasMissions(day.fullDate)
+                : isPerfectDay(day.fullDate)
                 ? "bg-green-200 text-gray-700"
                 : "bg-gray-50 text-gray-400"
             }`}
           >
             <div className="text-2xl font-bold mb-1">{day.num}</div>
             <div className="text-xs">{day.day}</div>
-            {hasMissions(day.fullDate) && (
+            {isPerfectDay(day.fullDate) && (
               <div className="absolute bottom-2 w-1.5 h-1.5 bg-green-500 rounded-full" />
             )}
           </button>

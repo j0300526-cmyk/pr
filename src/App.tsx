@@ -36,7 +36,8 @@ import {
 import { calculateStreak, countTotalMissions } from "./utils/missions";
 import { INITIAL_FRIENDS } from "./constants/users";
 import { STORAGE_KEYS } from "./constants/storage";
-import { api } from "./api";
+import { api, dayMissionApi } from "./api";
+import type { DayCompletionSummary } from "./api/types";
 import RankingPage from "./pages/Ranking"; // 파일명 맞춰서
 import KakaoCallbackPage from "./pages/KakaoCallback";
 
@@ -111,6 +112,9 @@ function App() {
   const [recommendedGroupMissions, setRecommendedGroupMissions] = useState<Mission[]>([]);
   const [leaveTarget, setLeaveTarget] = useState<Mission | null>(null);
   const [errorMessage, setErrorMessage] = useState<string>("");
+  const [dayCompletionMap, setDayCompletionMap] = useState<
+    Record<string, DayCompletionSummary>
+  >({});
   const [friends, setFriends] = useState<Profile[]>(INITIAL_FRIENDS);
   const [loadingFriends, setLoadingFriends] = useState(false);
   const [selectedInvitees, setSelectedInvitees] = useState<number[]>([]);
@@ -143,6 +147,23 @@ function App() {
     }
     return null;
   };
+
+  const refreshWeekSummary = useCallback(
+    async (dateStr: string) => {
+      if (!dateStr) return;
+      try {
+        const summary = await dayMissionApi.getWeekSummary(dateStr);
+        const map = summary.reduce<Record<string, DayCompletionSummary>>((acc, item) => {
+          acc[item.date] = item;
+          return acc;
+        }, {});
+        setDayCompletionMap(map);
+      } catch (error) {
+        console.error("주간 완료 상태를 불러오지 못했어요:", error);
+      }
+    },
+    []
+  );
 
   const loadInviteCandidates = useCallback(async () => {
     try {
@@ -212,6 +233,7 @@ function App() {
             })
           : [];
       setMissions((prev) => ({ ...prev, [dateStr]: entries }));
+      await refreshWeekSummary(dateStr);
 
       const map = new Map<string, number>();
       if (Array.isArray(data)) {
@@ -241,7 +263,7 @@ function App() {
       // 로딩 상태 제거
       loadingDatesRef.current.delete(dateStr);
     }
-  }, []);
+  }, [makeMissionKey, refreshWeekSummary, showError]);
 
   const fetchAvailableMissions = async () => {
     try {
@@ -603,8 +625,11 @@ function App() {
   };
 
   const formatSelectedDate = () => formatDateLabel(selectedDate);
-  const hasMissions = (dateStr: string): boolean =>
-    !!(missions[dateStr] && missions[dateStr].length > 0);
+  const isPerfectDay = useCallback(
+    (dateStr: string): boolean =>
+      !!dayCompletionMap[dateStr]?.is_day_perfectly_complete,
+    [dayCompletionMap]
+  );
   const isInMyGroups = (id: number): boolean =>
     myGroupMissions.some((m) => m.id === id);
 
@@ -1010,7 +1035,7 @@ function App() {
               setActiveTab={setActiveTab}
               formatDate={formatSelectedDate}
               isToday={isTodayDate}
-              hasMissions={hasMissions}
+              isPerfectDay={isPerfectDay}
               currentMissions={currentMissionsMemo}
               allAvailableMissions={allAvailableMissions}
               deleteMission={deleteMission}

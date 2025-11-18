@@ -43,6 +43,14 @@ export interface GroupRanking {
   color: string;
 }
 
+export interface DayCompletionSummary {
+  date: string;
+  total_missions: number;
+  completed_missions: number;
+  completion_rate: number;
+  is_day_perfectly_complete: boolean;
+}
+
 export interface RankingUser {
   id: number;
   name: string;
