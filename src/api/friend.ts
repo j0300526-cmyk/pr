@@ -8,6 +8,12 @@ export const friendApi = {
     return request<Friend[]>("/friends");
   },
 
+  // 랜덤 초대 후보 조회
+  getRandomCandidates: async (limit: number = 3): Promise<Friend[]> => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    return request<Friend[]>(`/users/random?${params.toString()}`);
+  },
+
   // 그룹 미션 초대 보내기
   sendInvite: async (groupId: number, friendIds: number[]): Promise<void> => {
     return request<void>(`/group-missions/${groupId}/invite`, {

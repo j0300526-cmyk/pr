@@ -115,6 +115,9 @@ export default function InvitePage({
                   : "이 그룹은 인원이 가득 찼어요."
                 : "초대할 그룹을 먼저 선택해주세요."}
             </p>
+            <p className="text-[11px] text-gray-400">
+              랜덤으로 추천된 3명의 사용자입니다. 마음에 들지 않으면 새로고침하세요.
+            </p>
           </div>
         </div>
 

@@ -144,11 +144,11 @@ function App() {
     return null;
   };
 
-  const loadFriends = useCallback(async () => {
+  const loadInviteCandidates = useCallback(async () => {
     try {
       setLoadingFriends(true);
       const { friendApi } = await import("./api");
-      const list = await friendApi.getFriends();
+      const list = await friendApi.getRandomCandidates(3);
       const normalized = Array.isArray(list)
         ? list.map((friend) => ({
             id: friend.id,
@@ -158,9 +158,10 @@ function App() {
           }))
         : [];
       setFriends(normalized);
+      setSelectedInvitees([]);
     } catch (error) {
-      console.error("친구 목록 로드 실패:", error);
-      showError("친구 목록을 불러오지 못했어요");
+      console.error("초대 후보 로드 실패:", error);
+      showError("초대 후보를 불러오지 못했어요");
     } finally {
       setLoadingFriends(false);
     }
@@ -893,7 +894,7 @@ function App() {
     // 2) 로컬/캐시 데이터 로드 (이 함수들 안에 자체 try/catch 있음)
     await loadUserData();
     await fetchAvailableMissions();
-    await loadFriends();
+    await loadInviteCandidates();
 
     // 3) ★ 서버 날짜가 있으면 사용, 없으면 클라이언트 날짜로 달력 초기화
     // selectedDate가 없으면 무조건 초기화
@@ -903,7 +904,7 @@ function App() {
   };
 
   loadInitialData();
-}, [isAuthed, loadFriends]);
+}, [isAuthed, loadInviteCandidates]);
 
 
   // 날짜 변경 시 해당 날짜 미션 로드 및 그룹 미션 체크 상태 불러오기
@@ -1056,7 +1057,7 @@ function App() {
               selectedGroupId={selectedInviteGroupId}
               onSelectGroup={handleSelectInviteGroup}
               loadingFriends={loadingFriends}
-              onRefreshFriends={loadFriends}
+              onRefreshFriends={loadInviteCandidates}
             />
           )}
 
