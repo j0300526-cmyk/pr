@@ -1,6 +1,7 @@
 import React from "react";
 import { Plus, X } from "lucide-react";
 import { CatalogMission, Mission, PersonalMissionEntry, WeekDay } from "../types";
+import { isTodayMonday } from "../utils/date";
 
 interface Props {
   userName: string;
@@ -214,18 +215,18 @@ export default function HomePage({
 
           <button
             className={`flex items-center gap-2 mt-4 ${
-              isToday(selectedDate)
+              selectedDate
                 ? "text-gray-600 hover:text-gray-800"
                 : "text-gray-300 cursor-not-allowed"
             }`}
-            onClick={() => isToday(selectedDate) && setShowAddMission(true)}
-            disabled={!isToday(selectedDate)}
+            onClick={() => selectedDate && setShowAddMission(true)}
+            disabled={!selectedDate}
           >
             <Plus size={22} />
             <span className="text-sm">
-              {isToday(selectedDate)
-                ? "개인 미션 추가하기"
-                : "오늘만 추가할 수 있어요"}
+              {selectedDate
+                ? `${formatDate()}부터 이번 주 일요일까지 루틴 추가`
+                : "날짜를 선택해주세요"}
             </span>
           </button>
         </div>

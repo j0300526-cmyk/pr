@@ -454,7 +454,11 @@ if (import.meta.env.DEV && !import.meta.env.VITE_API_BASE_URL) {
       { id: 104, name: "에코백 사용하기", category: "일상" },
       { id: 105, name: "분리수거 철저히 하기", category: "분리배출" },
     ],
-    "/server/date": () => new Date().toISOString().split("T")[0],
+    "/server/date": () => {
+      // KST(UTC+9) 기준 오늘 날짜
+      const kstTime = new Date(Date.now() + 9 * 60 * 60 * 1000);
+      return kstTime.toISOString().slice(0, 10);
+    },
   };
 
   // Mock API 오버라이드

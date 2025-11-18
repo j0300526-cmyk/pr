@@ -2,7 +2,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import engine, Base, ensure_day_mission_schema
-from routers import auth, users, missions, day_missions, group_missions, friends, ranking, utils, kakao_auth
+from routers import auth, users, missions, day_missions, group_missions, friends, ranking, utils, kakao_auth, personal_routine
 from routers import debug
 import os
 from dotenv import load_dotenv
@@ -41,6 +41,7 @@ app.include_router(kakao_auth.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
 app.include_router(missions.router, prefix="/api")
 app.include_router(day_missions.router, prefix="/api")
+app.include_router(personal_routine.router, prefix="/api")
 app.include_router(group_missions.router, prefix="/api")
 app.include_router(friends.router, prefix="/api")
 app.include_router(ranking.router, prefix="/api")

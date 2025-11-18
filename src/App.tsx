@@ -24,6 +24,8 @@ import {
   generateWeekDays as createWeekDays,
   isToday as isTodayDate,
   formatDateLabel,
+  getTodayKST,
+  isTodayMonday,
 } from "./utils/date";
 import {
   DEFAULT_GROUP_MISSIONS,
@@ -91,8 +93,8 @@ function App() {
 
   // ★ 수정 포인트: 이미 선택된 날짜가 있으면 덮어쓰지 않기
   const initializeWeekDays = async (serverDate?: string) => {
-    // 서버 날짜가 있으면 사용, 없으면 클라이언트 날짜 사용
-    const centerDate = serverDate ? new Date(serverDate) : new Date();
+    // 서버 날짜가 있으면 사용, 없으면 KST 기준 클라이언트 날짜 사용
+    const centerDate = serverDate ? new Date(serverDate) : new Date(getTodayKST());
     const days = createWeekDays(centerDate);
     setWeekDays(days);
     // 오늘이 포함된 날짜를 기본 선택 (없으면 월요일)
@@ -362,26 +364,82 @@ function App() {
     missionId: number;
     submission: string;
   }) => {
-    if (!selectedDate) return;
-    if (!isTodayDate(selectedDate)) {
-      showError(
-        "과거 날짜에는 추가할 수 없어요. 오늘 날짜에서만 추가 가능합니다."
-      );
+    if (!selectedDate) {
+      showError("날짜를 선택해주세요.");
       return;
     }
-    const trimmedSubmission = submission.trim();
 
     if (import.meta.env.DEV) {
       console.log("[DEBUG addMission] selectedDate:", selectedDate);
-      console.log("[DEBUG addMission] newMission:", missionId);
-      console.log("[DEBUG addMission] selected submission:", trimmedSubmission);
-      console.log("[DEBUG addMission] current missions for date:", missions[selectedDate]);
-      console.log("[DEBUG addMission] normalized current:", getCurrentMissions());
-      console.log(
-        "[DEBUG addMission] allAvailableMissions ids:",
-        allAvailableMissions.map((m) => m.id)
-      );
-      console.log("[DEBUG addMission] pkMap keys:", Array.from(pkMapRef.current.keys()));
+      console.log("[DEBUG addMission] missionId:", missionId);
+      console.log("[DEBUG addMission] submission:", submission);
+    }
+
+    const exists = allAvailableMissions.some((m) => m.id === missionId);
+    if (!exists) {
+      showError("서버에 등록된 미션만 추가할 수 있어요.");
+      return;
+    }
+
+    if (!submission || !submission.trim()) {
+      showError("소주제를 선택해주세요.");
+      return;
+    }
+
+    // 주간 루틴 API 사용 (selectedDate부터 그 주 일요일까지 자동 생성)
+    try {
+      const response: any = await api(`/personal-routines`, {
+        method: "POST",
+        body: JSON.stringify({ 
+          mission_id: missionId, 
+          date: selectedDate  // 선택한 날짜 기준으로 루틴 생성
+        }),
+      });
+      
+      if (import.meta.env.DEV) {
+        console.log("[DEBUG addMission] 주간 루틴 추가 성공:", response);
+      }
+      
+      showError("주간 루틴이 추가되었어요!");
+      
+      // 현재 주의 모든 날짜의 미션 다시 로드
+      if (weekDays && weekDays.length > 0) {
+        for (const day of weekDays) {
+          await loadDay(day.fullDate);
+        }
+      }
+    } catch (error: any) {
+      if (error?.status === 400) {
+        showError(error.message || "주간 루틴을 추가할 수 없습니다.");
+      } else if (error?.status === 409) {
+        showError("이미 추가된 루틴이에요.");
+      } else {
+        showError("루틴 추가에 실패했어요");
+      }
+      return;
+    }
+
+    setShowAddMission(false);
+  };
+
+  const addWeeklyRoutine = async ({
+    missionId,
+    submission,
+  }: {
+    missionId: number;
+    submission: string;
+  }) => {
+    // 월요일에만 추가 가능
+    if (!isTodayMonday()) {
+      showError("주간 루틴은 월요일에만 추가할 수 있어요.");
+      return;
+    }
+
+    const trimmedSubmission = submission.trim();
+
+    if (import.meta.env.DEV) {
+      console.log("[DEBUG addWeeklyRoutine] missionId:", missionId);
+      console.log("[DEBUG addWeeklyRoutine] submission:", trimmedSubmission);
     }
 
     const exists = allAvailableMissions.some((m) => m.id === missionId);
@@ -395,40 +453,33 @@ function App() {
       return;
     }
 
-    const current = getCurrentMissions();
-    if (current.some((item) => item.submission === trimmedSubmission)) {
-      showError("이미 추가된 소주제예요.");
-      return;
-    }
-
     // 서버에 추가 시도
     try {
-      await api(`/days/${selectedDate}/missions`, {
+      await api(`/personal-routine/add`, {
         method: "POST",
         body: JSON.stringify({ mission_id: missionId, submission: trimmedSubmission }),
       });
+      showError("주간 루틴이 추가되었어요!");
+      // 모든 날짜의 미션 다시 로드 (주간 루틴이 모든 날짜에 표시되도록)
+      if (selectedDate) {
+        loadDay(selectedDate);
+      }
+      // 주간의 다른 날짜들도 로드
+      weekDays.forEach((day) => {
+        if (day.fullDate !== selectedDate) {
+          loadDay(day.fullDate);
+        }
+      });
     } catch (error: any) {
-      // request.ts에서 status와 message를 포함한 Error를 던집니다
       if (error?.status === 400) {
-        showError(error.message || "개인 미션을 추가할 수 없습니다.");
+        showError(error.message || "주간 루틴을 추가할 수 없습니다.");
       } else {
-        showError("미션 추가에 실패했어요");
+        showError("주간 루틴 추가에 실패했어요");
       }
       return;
     }
 
-    // 로컬 상태 업데이트
-    const updated = [
-      ...current,
-      { missionId, submission: trimmedSubmission },
-    ];
-    const next = { ...missions, [selectedDate]: updated };
-    setMissions(next);
-    saveUserData(next);
     setShowAddMission(false);
-
-    // 데이터 다시 로드하여 PK 동기화
-    loadDay(selectedDate);
   };
 
   const handleMissionSearch = (q: string) => {

@@ -19,6 +19,7 @@ class User(Base):
     
     # 관계
     day_missions = relationship("DayMission", back_populates="user")
+    weekly_routines = relationship("WeeklyPersonalRoutine", back_populates="user")
     group_memberships = relationship("GroupMember", back_populates="user")
     sent_invites = relationship("Invite", foreign_keys="Invite.from_user_id", back_populates="from_user")
     received_invites = relationship("Invite", foreign_keys="Invite.to_user_id", back_populates="to_user")
@@ -34,6 +35,7 @@ class CatalogMission(Base):
     
     # 관계
     day_missions = relationship("DayMission", back_populates="mission")
+    weekly_routines = relationship("WeeklyPersonalRoutine", back_populates="mission")
 
 class DayMission(Base):
     __tablename__ = "day_missions"
@@ -130,5 +132,25 @@ class Friend(Base):
     # 복합 유니크: 친구 관계는 한 번만
     __table_args__ = (
         UniqueConstraint('user_id', 'friend_id', name='uq_friends'),
+    )
+
+class WeeklyPersonalRoutine(Base):
+    __tablename__ = "weekly_personal_routines"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    mission_id = Column(Integer, ForeignKey("catalog_missions.id"), nullable=False)
+    sub_mission = Column(String, nullable=False, default="")
+    week_start_date = Column(Date, nullable=False, index=True)  # 해당 주의 월요일 날짜 (조회/그룹화 기준)
+    start_date = Column(Date, nullable=False, index=True)  # 사용자가 실제로 루틴을 추가한 날짜 (표시 시작 기준)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # 관계
+    user = relationship("User", back_populates="weekly_routines")
+    mission = relationship("CatalogMission", back_populates="weekly_routines")
+    
+    # 복합 유니크: 같은 주에 같은 미션은 한 번만 (sub_mission 제외)
+    __table_args__ = (
+        UniqueConstraint('user_id', 'week_start_date', 'mission_id', name='uq_user_week_mission'),
     )
 

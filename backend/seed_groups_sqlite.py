@@ -2,8 +2,12 @@
 import sqlite3
 import os
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "zero_waste.db")
+
+# KST(Asia/Seoul) 타임존
+KST = ZoneInfo("Asia/Seoul")
 
 print("DB path:", DB_PATH)
 conn = sqlite3.connect(DB_PATH)
@@ -21,7 +25,7 @@ try:
         print("Creating test user...")
         cur.execute(
             "INSERT INTO users (email, password_hash, name, profile_color, bio, created_at) VALUES (?,?,?,?,?,?)",
-            ("test@example.com", "", "테스트 사용자", "bg-green-300", "테스트 계정입니다", datetime.utcnow().isoformat()),
+            ("test@example.com", "", "테스트 사용자", "bg-green-300", "테스트 계정입니다", datetime.now(KST).isoformat()),
         )
         conn.commit()
         user_id = cur.lastrowid

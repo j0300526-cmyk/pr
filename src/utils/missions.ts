@@ -1,5 +1,6 @@
 // 미션 데이터에서 통계 값을 계산하는 유틸 함수 모음
 import { MissionsRecord, Mission } from "../types";
+import { getTodayKST } from "./date";
 
 export const calculateStreak = (missions: MissionsRecord): number => {
   const doneDates = new Set(
@@ -8,13 +9,17 @@ export const calculateStreak = (missions: MissionsRecord): number => {
   if (doneDates.size === 0) return 0;
 
   let streak = 0;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // KST 기준 오늘 날짜 사용
+  const todayISO = getTodayKST();
+  const today = new Date(todayISO + "T00:00:00");
 
   while (true) {
     const check = new Date(today);
     check.setDate(today.getDate() - streak);
-    const key = check.toISOString().split("T")[0];
+    const year = check.getFullYear();
+    const month = String(check.getMonth() + 1).padStart(2, "0");
+    const day = String(check.getDate()).padStart(2, "0");
+    const key = `${year}-${month}-${day}`;
     if (doneDates.has(key)) streak += 1;
     else break;
   }

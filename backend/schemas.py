@@ -60,6 +60,7 @@ class DayMissionBase(BaseModel):
 class DayMissionCreate(BaseModel):
     mission_id: int
     submission: str
+    apply_until_end_of_week: Optional[bool] = False  # 선택한 날짜부터 그 주 일요일까지 자동 생성
 
 class DayMissionResponse(BaseModel):
     id: int
@@ -73,6 +74,12 @@ class DayMissionResponse(BaseModel):
 
 class DayMissionUpdate(BaseModel):
     completed: bool
+
+class DayMissionBatchCreateResponse(BaseModel):
+    """주간 자동 생성 응답"""
+    mission_id: int
+    created_dates: list[str]  # YYYY-MM-DD 형식
+    skipped: list[str]  # 이미 존재해서 건너뛴 날짜들
 
 # ===== 그룹 미션 =====
 class GroupMissionBase(BaseModel):
@@ -131,4 +138,20 @@ class RankingUserResponse(BaseModel):
 class MyRankResponse(BaseModel):
     personal_rank: int
     group_ranks: List[dict]  # [{"group_id": 1, "rank": 2}]
+
+# ===== 주간 개인 루틴 =====
+class WeeklyPersonalRoutineCreate(BaseModel):
+    mission_id: int
+    date: date  # 사용자가 루틴을 추가한 실제 날짜
+
+class WeeklyPersonalRoutineResponse(BaseModel):
+    id: int
+    user_id: int
+    mission_id: int
+    week_start_date: date  # 해당 주의 월요일
+    start_date: date  # 사용자가 실제로 루틴을 추가한 날짜
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
 
