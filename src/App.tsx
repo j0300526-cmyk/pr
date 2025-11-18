@@ -13,6 +13,8 @@ import {
   PersonalMissionEntry,
   PageType,
   WeekDay,
+  GroupParticipant,
+  Profile,
 } from "./types";
 import { safeStorage } from "./storage";
 import ErrorToast from "./components/ErrorToast";
@@ -59,6 +61,43 @@ function App() {
   const pkMapRef = useRef<Map<string, number>>(new Map());
   const makeMissionKey = (missionId: number, submission: string) =>
     `${missionId}::${submission}`;
+
+  const normalizeParticipants = (participants: any): GroupParticipant[] => {
+    if (!Array.isArray(participants)) return [];
+    return (
+      participants
+        .map((participant, index) => {
+        if (!participant) return null;
+        if (typeof participant === "string") {
+          return {
+            id: index,
+            name: participant,
+            profile_color: "bg-gray-300",
+          };
+        }
+        const name =
+          typeof participant.name === "string" && participant.name.trim().length > 0
+            ? participant.name
+            : `그룹원 ${index + 1}`;
+        return {
+          id: Number(participant.id ?? index),
+          name,
+          profile_color:
+            participant.profile_color ||
+            participant.color ||
+            "bg-gray-300",
+        };
+        })
+        .filter(Boolean) as GroupParticipant[]
+    );
+  };
+
+  const normalizeMissionParticipants = (mission: Mission | any): Mission => {
+    return {
+      ...(mission || {}),
+      participants: normalizeParticipants(mission?.participants),
+    } as Mission;
+  };
   
   // API 호출 중복 방지를 위한 로딩 상태 추적
   const loadingDatesRef = useRef<Set<string>>(new Set());
@@ -72,6 +111,11 @@ function App() {
   const [recommendedGroupMissions, setRecommendedGroupMissions] = useState<Mission[]>([]);
   const [leaveTarget, setLeaveTarget] = useState<Mission | null>(null);
   const [errorMessage, setErrorMessage] = useState<string>("");
+  const [friends, setFriends] = useState<Profile[]>(INITIAL_FRIENDS);
+  const [loadingFriends, setLoadingFriends] = useState(false);
+  const [selectedInvitees, setSelectedInvitees] = useState<number[]>([]);
+  const [selectedInviteGroupId, setSelectedInviteGroupId] = useState<number | null>(null);
+  const [sendingInvites, setSendingInvites] = useState(false);
 
   const [isAuthed, setIsAuthed] = useState(false);
   const [booting, setBooting] = useState(true);
@@ -82,10 +126,10 @@ function App() {
   );
 
   // ===== 헬퍼 함수들 =====
-  const showError = (message: string) => {
+  const showError = useCallback((message: string) => {
     setErrorMessage(message);
     setTimeout(() => setErrorMessage(""), 3000);
-  };
+  }, []);
 
   const getVal = (res: unknown): string | null => {
     if (typeof res === "string") return res;
@@ -99,6 +143,28 @@ function App() {
     }
     return null;
   };
+
+  const loadFriends = useCallback(async () => {
+    try {
+      setLoadingFriends(true);
+      const { friendApi } = await import("./api");
+      const list = await friendApi.getFriends();
+      const normalized = Array.isArray(list)
+        ? list.map((friend) => ({
+            id: friend.id,
+            name: friend.name,
+            activeDays: friend.activeDays ?? 0,
+            profileColor: friend.profileColor || "bg-gray-300",
+          }))
+        : [];
+      setFriends(normalized);
+    } catch (error) {
+      console.error("친구 목록 로드 실패:", error);
+      showError("친구 목록을 불러오지 못했어요");
+    } finally {
+      setLoadingFriends(false);
+    }
+  }, [showError]);
 
   // ★ 수정 포인트: 이미 선택된 날짜가 있으면 덮어쓰지 않기
   const initializeWeekDays = async (serverDate?: string) => {
@@ -296,12 +362,17 @@ function App() {
       if (myGroupsResult) {
         try {
           const parsed = JSON.parse(getVal(myGroupsResult) || "[]");
-          if (Array.isArray(parsed)) setMyGroupMissions(parsed);
+          if (Array.isArray(parsed)) {
+            const normalized = parsed.map((mission: Mission) =>
+              normalizeMissionParticipants(mission)
+            );
+            setMyGroupMissions(normalized);
+          }
         } catch {
-            setMyGroupMissions([]);
+          setMyGroupMissions([]);
         }
       } else {
-            setMyGroupMissions([]);
+        setMyGroupMissions([]);
       }
     } catch {
       showError("데이터 로딩 중 오류가 발생했어요");
@@ -546,7 +617,8 @@ function App() {
     try {
       const { groupMissionApi } = await import("./api");
       const updatedGroup = await groupMissionApi.joinGroup(mission.id);
-      const next = [...myGroupMissions, updatedGroup];
+      const normalized = normalizeMissionParticipants(updatedGroup);
+      const next = [...myGroupMissions, normalized];
       setMyGroupMissions(next);
       saveMyGroups(next);
     } catch (error: any) {
@@ -587,16 +659,19 @@ function App() {
       
       // 생성 후 자동으로 참여
       const joinedGroup = await groupMissionApi.joinGroup(newGroup.id);
+      const normalizedJoined = normalizeMissionParticipants(joinedGroup);
       
       // 내 그룹 목록에 추가
-      const next = [...myGroupMissions, joinedGroup];
+      const next = [...myGroupMissions, normalizedJoined];
       setMyGroupMissions(next);
       saveMyGroups(next);
       
       // 추천 그룹 목록 새로고침
       try {
         const recommended = await groupMissionApi.getRecommended();
-        setRecommendedGroupMissions(recommended);
+        setRecommendedGroupMissions(
+          recommended.map((mission: Mission) => normalizeMissionParticipants(mission))
+        );
       } catch (err) {
         console.warn("추천 그룹 목록 새로고침 실패", err);
       }
@@ -626,6 +701,42 @@ function App() {
       localStorage.removeItem("refresh");
     }
     setIsAuthed(false);
+  };
+
+  const toggleInvitee = (id: number) => {
+    setSelectedInvitees((prev) =>
+      prev.includes(id) ? prev.filter((value) => value !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectInviteGroup = (groupId: number) => {
+    if (selectedInviteGroupId === groupId) return;
+    setSelectedInviteGroupId(groupId);
+    setSelectedInvitees([]);
+  };
+
+  const handleSendInvites = async () => {
+    if (!selectedInviteGroupId) {
+      showError("초대할 그룹을 선택해주세요.");
+      return;
+    }
+    if (selectedInvitees.length === 0) {
+      showError("초대할 친구를 선택해주세요.");
+      return;
+    }
+
+    try {
+      setSendingInvites(true);
+      const { friendApi } = await import("./api");
+      await friendApi.sendInvite(selectedInviteGroupId, selectedInvitees);
+      showError("초대를 보냈어요!");
+      setSelectedInvitees([]);
+    } catch (error: any) {
+      console.error("초대 전송 실패:", error);
+      showError(error?.message || "초대 전송에 실패했어요");
+    } finally {
+      setSendingInvites(false);
+    }
   };
 
   // ===== Effects =====
@@ -745,13 +856,18 @@ function App() {
       try {
         const { groupMissionApi } = await import("./api");
         const groups = await groupMissionApi.getMyGroups();
-        setMyGroupMissions(groups);
-        saveMyGroups(groups);
+        const normalizedGroups = groups.map((mission: Mission) =>
+          normalizeMissionParticipants(mission)
+        );
+        setMyGroupMissions(normalizedGroups);
+        saveMyGroups(normalizedGroups);
 
         // 추천 그룹 목록도 가져오기
         try {
           const recommended = await groupMissionApi.getRecommended();
-          setRecommendedGroupMissions(recommended);
+          setRecommendedGroupMissions(
+            recommended.map((mission: Mission) => normalizeMissionParticipants(mission))
+          );
         } catch (err) {
           console.warn("추천 그룹 로드 실패", err);
           setRecommendedGroupMissions([...RECOMMENDED_MISSIONS]);
@@ -777,6 +893,7 @@ function App() {
     // 2) 로컬/캐시 데이터 로드 (이 함수들 안에 자체 try/catch 있음)
     await loadUserData();
     await fetchAvailableMissions();
+    await loadFriends();
 
     // 3) ★ 서버 날짜가 있으면 사용, 없으면 클라이언트 날짜로 달력 초기화
     // selectedDate가 없으면 무조건 초기화
@@ -786,7 +903,7 @@ function App() {
   };
 
   loadInitialData();
-}, [isAuthed]);
+}, [isAuthed, loadFriends]);
 
 
   // 날짜 변경 시 해당 날짜 미션 로드 및 그룹 미션 체크 상태 불러오기
@@ -807,7 +924,10 @@ function App() {
         try {
           const { groupMissionApi } = await import("./api/groupMission");
           const groups = await groupMissionApi.getMyGroups(selectedDate);
-          setMyGroupMissions(groups);
+          const normalized = groups.map((mission: Mission) =>
+            normalizeMissionParticipants(mission)
+          );
+          setMyGroupMissions(normalized);
         } catch (error) {
           console.error("그룹 미션 체크 상태 불러오기 실패:", error);
         }
@@ -822,6 +942,27 @@ function App() {
       setAvailableMissions(allAvailableMissions);
     }
   }, [showAddMission, allAvailableMissions]);
+
+  useEffect(() => {
+    if (myGroupMissions.length === 0) {
+      setSelectedInviteGroupId(null);
+      setSelectedInvitees([]);
+      return;
+    }
+
+    if (!selectedInviteGroupId) {
+      setSelectedInviteGroupId(myGroupMissions[0].id);
+      return;
+    }
+
+    const exists = myGroupMissions.some(
+      (mission) => mission.id === selectedInviteGroupId
+    );
+    if (!exists) {
+      setSelectedInviteGroupId(myGroupMissions[0].id);
+      setSelectedInvitees([]);
+    }
+  }, [myGroupMissions, selectedInviteGroupId]);
 
   // ===== 렌더 =====
   if (booting) {
@@ -906,18 +1047,17 @@ function App() {
 
           {currentPage === "invite" && (
             <InvitePage
-  friends={INITIAL_FRIENDS}
-  selectedInvitees={[]}
-  toggleInvitee={(id: number) => {
-    // TODO: 초대 대상 토글 로직
-    console.log("invite toggle", id);
-  }}
-  sendingInvites={false}
-  sendInvites={() => {
-    // TODO: 초대 보내기 로직
-    console.log("send invites");
-  }}
-/>
+              friends={friends}
+              selectedInvitees={selectedInvitees}
+              toggleInvitee={toggleInvitee}
+              sendingInvites={sendingInvites}
+              sendInvites={handleSendInvites}
+              groups={myGroupMissions}
+              selectedGroupId={selectedInviteGroupId}
+              onSelectGroup={handleSelectInviteGroup}
+              loadingFriends={loadingFriends}
+              onRefreshFriends={loadFriends}
+            />
           )}
 
           {currentPage === "mypage" && (

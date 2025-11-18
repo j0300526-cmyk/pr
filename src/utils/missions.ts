@@ -62,8 +62,8 @@ export const calculateGroupMissionScore = (
   // 특별 보너스: 본인 포함 그룹원 3명이 모두 완료하면 4점
   if (groupMission.participants.length === 3 && completedParticipants.length === 3) {
     // 모든 참여자가 완료했는지 확인
-    const allCompleted = groupMission.participants.every(participant =>
-      completedParticipants.includes(participant)
+    const allCompleted = groupMission.participants.every((participant) =>
+      completedParticipants.includes(participant.name)
     );
     if (allCompleted) {
       return 4; // 보너스 점수 4점

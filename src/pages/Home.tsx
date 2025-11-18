@@ -346,14 +346,22 @@ export default function HomePage({
                 {/* 상단: 그룹명 + 체크 */}
                 <div className="flex justify-between items-start gap-3 mb-4">
                   <div className="flex items-center gap-3 flex-1">
-                    <img
-                      src={`https://randomuser.me/api/portraits/women/${mission.id * 2}.jpg`}
-                      className="w-12 h-12 rounded-full object-cover border-2 border-blue-200"
-                      alt="대표"
-                    />
+                    {(() => {
+                      const leader = mission.participants[0];
+                      const leaderColor =
+                        leader?.profile_color || mission.color || "bg-gray-300";
+                      const leaderInitial = leader?.name?.charAt(0) || "G";
+                      return (
+                        <div
+                          className={`w-12 h-12 ${leaderColor} rounded-full flex items-center justify-center text-white font-bold border-2 border-white shadow`}
+                        >
+                          {leaderInitial}
+                        </div>
+                      );
+                    })()}
                     <div className="flex-1">
                       <p className="text-gray-600 text-xs font-semibold uppercase tracking-wider">
-                        {mission.participants[0]} 님의 그룹
+                        {mission.participants[0]?.name || "그룹원"} 님의 그룹
                       </p>
                       <h2 className="text-base font-bold text-gray-900 mt-1">
                         {mission.name}
@@ -400,19 +408,21 @@ export default function HomePage({
                     팀원 진행상황
                   </p>
                   <div className="flex justify-around items-center">
-                    {mission.participants.slice(0, 2).map((p, i) => {
-                      const key = `${mission.id}-${p}`;
+                    {mission.participants.slice(0, 2).map((participant, i) => {
+                      const name = participant?.name || `멤버${i + 1}`;
+                      const key = `${mission.id}-${name}`;
                       const checked = checkedParticipants[key];
+                      const fallbackColors = ["bg-gray-300", "bg-gray-400", "bg-gray-500"];
+                      const avatarColor =
+                        participant?.profile_color || fallbackColors[i % fallbackColors.length];
                       return (
-                        <div key={p} className="flex flex-col items-center">
+                        <div key={participant?.id ?? key} className="flex flex-col items-center">
                           <div className="relative mb-2">
-                            <img
-                              src={`https://randomuser.me/api/portraits/${
-                                i % 2 === 0 ? "women" : "men"
-                              }/${mission.id * (i + 4)}.jpg`}
-                              className="w-14 h-14 rounded-full object-cover border-2 border-gray-200"
-                              alt={p}
-                            />
+                            <div
+                              className={`w-14 h-14 ${avatarColor} rounded-full flex items-center justify-center text-white font-bold border-2 border-white shadow`}
+                            >
+                              {name.charAt(0)}
+                            </div>
                             {checked && (
                               <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center border-2 border-white">
                                 <svg
@@ -433,10 +443,10 @@ export default function HomePage({
                             )}
                           </div>
                           <span className="text-xs font-medium text-gray-700 mb-2">
-                            {p}
+                            {name}
                           </span>
                           <button
-                            onClick={() => handleParticipantCheck(mission.id, p)}
+                            onClick={() => handleParticipantCheck(mission.id, name)}
                             className={`w-8 h-8 border-2 rounded-full flex items-center justify-center transition-all ${
                               checked
                                 ? "border-green-400 bg-green-100 text-green-500"

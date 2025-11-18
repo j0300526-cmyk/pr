@@ -4,7 +4,12 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, func
 from database import get_db
 from models import GroupMission, GroupMember, GroupMissionCheck, User
-from schemas import GroupMissionResponse, GroupMissionCheckRequest, GroupMissionCreate
+from schemas import (
+    GroupMissionResponse,
+    GroupMissionCheckRequest,
+    GroupMissionCreate,
+    GroupParticipantResponse,
+)
 from auth import get_current_user
 from datetime import date, datetime
 from typing import List, Optional
@@ -17,8 +22,15 @@ MAX_GROUPS_PER_USER = 2
 
 def group_mission_to_response(group: GroupMission, db: Session, checked: Optional[bool] = None) -> GroupMissionResponse:
     """GroupMission 모델을 응답 스키마로 변환"""
-    # 참여자 이름 목록
-    participants = [member.user.name for member in group.members]
+    # 참여자 정보 목록
+    participants = [
+        GroupParticipantResponse(
+            id=member.user.id,
+            name=member.user.name,
+            profile_color=member.user.profile_color,
+        )
+        for member in group.members
+    ]
     
     # 총 점수 계산 (간단한 예시, 실제로는 더 복잡한 로직 필요)
     total_score = db.query(func.count(GroupMissionCheck.id)).filter(

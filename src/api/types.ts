@@ -1,6 +1,6 @@
 // API 관련 타입 정의
 // 대부분의 공통 타입은 루트 `src/types.ts`에서 관리합니다.
-import type { CatalogMission } from "../types";
+import type { CatalogMission, GroupParticipant } from "../types";
 
 export interface DayMission {
   id: number; // dayMissionPk
@@ -28,7 +28,7 @@ export interface User {
 export interface GroupMission {
   id: number;
   name: string;
-  participants: string[];
+  participants: GroupParticipant[];
   color: string;
   total_score?: number;
   member_count?: number;

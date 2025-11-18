@@ -1,8 +1,14 @@
 // 공유 타입
+export interface GroupParticipant {
+  id: number;
+  name: string;
+  profile_color?: string;
+}
+
 export interface Mission {
   id: number;
   name: string;
-  participants: string[];
+  participants: GroupParticipant[];
   color: string;
   // 완료 상태 (옵셔널, 서버에서 불러올 때 포함)
   checked?: boolean;

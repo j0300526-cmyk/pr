@@ -89,9 +89,18 @@ class GroupMissionBase(BaseModel):
 class GroupMissionCreate(GroupMissionBase):
     pass
 
+class GroupParticipantResponse(BaseModel):
+    id: int
+    name: str
+    profile_color: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
 class GroupMissionResponse(GroupMissionBase):
     id: int
-    participants: List[str]  # 사용자 이름 목록
+    participants: List[GroupParticipantResponse]  # 사용자 정보 목록
     total_score: Optional[int] = 0
     member_count: int
     checked: Optional[bool] = None  # 날짜별 체크 상태 (선택적)

@@ -26,14 +26,23 @@ export default function GroupDetailModal({
           참여 인원 ({mission.participants.length}/3명)
         </p>
         <div className="space-y-3 mb-6 max-h-60 overflow-y-auto">
-          {mission.participants.map((participant: string, index: number) => (
-            <div key={index} className="flex items-center gap-3 p-3 bg-gray-50 rounded-3xl">
-              <div className={`w-10 h-10 ${mission.color} rounded-full flex items-center justify-center text-white font-bold`}>
-                {participant.charAt(0)}
+          {mission.participants.map((participant, index) => {
+            const avatarColor = participant.profile_color || mission.color || "bg-gray-300";
+            const initials = participant.name ? participant.name.charAt(0) : "?";
+            return (
+              <div
+                key={participant.id ?? `${participant.name}-${index}`}
+                className="flex items-center gap-3 p-3 bg-gray-50 rounded-3xl"
+              >
+                <div
+                  className={`w-10 h-10 ${avatarColor} rounded-full flex items-center justify-center text-white font-bold`}
+                >
+                  {initials}
+                </div>
+                <span className="text-gray-700">{participant.name}</span>
               </div>
-              <span className="text-gray-700">{participant}</span>
-            </div>
-          ))}
+            );
+          })}
         </div>
         <div className="flex gap-3">
           <button onClick={onClose} className="flex-1 py-3 bg-gray-200 rounded-3xl font-medium text-gray-700">닫기</button>
