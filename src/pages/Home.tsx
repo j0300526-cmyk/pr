@@ -56,6 +56,11 @@ export default function HomePage({
 
   const handleCheck = async (id: number) => {
     if (!selectedDate) return;
+
+    const isMyGroup = myGroupMissions.some((mission) => mission.id === id);
+    if (!isMyGroup) {
+      return;
+    }
     
     const currentChecked = !!checkedMissions[id];
     const newChecked = !currentChecked;
@@ -154,11 +159,11 @@ export default function HomePage({
     
     // 그룹 미션 탭일 때 체크 상태 초기화
     if (selectedDate && activeTab === "group") {
-      const checkedState: Record<number, boolean> = {};
-      myGroupMissions.forEach((mission) => {
-        checkedState[mission.id] = mission.checked || false;
-      });
-      setCheckedMissions(checkedState);
+        const checkedState: Record<number, boolean> = {};
+        myGroupMissions.forEach((mission) => {
+          checkedState[mission.id] = mission.checked || false;
+        });
+        setCheckedMissions(checkedState);
     } else if (activeTab !== "group") {
       setCheckedMissions({});
     }
