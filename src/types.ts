@@ -27,6 +27,9 @@ export interface Profile { id: number; name: string; activeDays: number; profile
 export interface PersonalMissionEntry {
   missionId: number;
   submission: string;
+  // 주간 루틴 관련 필드 (옵셔널)
+  is_weekly_routine?: boolean;
+  routine_id?: number;
 }
 
 export type MissionsRecord = Record<string, PersonalMissionEntry[]>;

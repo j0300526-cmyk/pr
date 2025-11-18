@@ -120,6 +120,8 @@ function App() {
               return {
                 missionId: Number(x?.mission?.id),
                 submission: x?.sub_mission || fallbackName,
+                is_weekly_routine: x?.is_weekly_routine || false,
+                routine_id: x?.routine_id || undefined,
               };
             })
           : [];
@@ -337,24 +339,37 @@ function App() {
 
     // 서버에서 삭제 시도
     try {
-      const key = makeMissionKey(target.missionId, target.submission);
-      const pk = pkMapRef.current.get(key);
-      if (pk) {
-        await api(`/days/${selectedDate}/missions/${pk}`, {
+      // 주간 루틴인 경우 personal-routines 엔드포인트 사용
+      if (target.is_weekly_routine && target.routine_id) {
+        await api(`/personal-routines/${target.routine_id}`, {
           method: "DELETE",
         });
-        pkMapRef.current.delete(key);
+        // 주간 루틴 삭제 후 전체 주간 미션 다시 로드
+        if (weekDays && weekDays.length > 0) {
+          for (const day of weekDays) {
+            await loadDay(day.fullDate);
+          }
+        }
+      } else {
+        // 일일 미션인 경우 기존 로직 사용
+        const key = makeMissionKey(target.missionId, target.submission);
+        const pk = pkMapRef.current.get(key);
+        if (pk) {
+          await api(`/days/${selectedDate}/missions/${pk}`, {
+            method: "DELETE",
+          });
+          pkMapRef.current.delete(key);
+        }
+        // 로컬 상태 업데이트
+        const updated = current.filter((_, i) => i !== index);
+        const next = { ...missions, [selectedDate]: updated };
+        setMissions(next);
+        saveUserData(next);
       }
     } catch {
       showError("미션 삭제에 실패했어요");
       return;
     }
-
-    // 로컬 상태 업데이트
-    const updated = current.filter((_, i) => i !== index);
-    const next = { ...missions, [selectedDate]: updated };
-    setMissions(next);
-    saveUserData(next);
   };
 
   const addMission = async ({
