@@ -34,6 +34,15 @@ export interface GroupMission {
   member_count?: number;
 }
 
+// 그룹 랭킹 응답 타입
+export interface GroupRanking {
+  id: number;
+  name: string;
+  total_score: number;
+  member_count: number;
+  color: string;
+}
+
 export interface RankingUser {
   id: number;
   name: string;

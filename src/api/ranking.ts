@@ -1,6 +1,6 @@
 // 랭킹 API
 import { request } from "./request";
-import type { RankingUser, GroupMission } from "./types";
+import type { RankingUser, GroupRanking } from "./types";
 
 export const rankingApi = {
   // 개인 랭킹 조회
@@ -9,8 +9,8 @@ export const rankingApi = {
   },
 
   // 그룹 랭킹 조회
-  getGroupRanking: async (): Promise<GroupMission[]> => {
-    return request<GroupMission[]>("/ranking/group");
+  getGroupRanking: async (): Promise<GroupRanking[]> => {
+    return request<GroupRanking[]>("/ranking/group");
   },
 
   // 내 순위 조회

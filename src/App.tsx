@@ -42,6 +42,7 @@ function App() {
   // ===== State =====
   const [userName, setUserName] = useState("");
   const [profileColor, setProfileColor] = useState("bg-green-300");
+  const [userId, setUserId] = useState<number | undefined>(undefined);
   const [missions, setMissions] = useState<MissionsRecord>({});
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [showAddMission, setShowAddMission] = useState(false);
@@ -716,6 +717,9 @@ function App() {
       const me: any = await api("/users/me");
       setUserName(me?.name ?? userName);
       setProfileColor(me?.profile_color ?? profileColor);
+      if (me?.id) {
+        setUserId(me.id);
+      }
       
       // bio도 서버에서 가져오기
       if (me?.bio) {
@@ -892,6 +896,7 @@ function App() {
               userName={userName}
               currentStreak={currentStreak}
               totalMissionsCount={totalMissionsCount}
+              userId={userId}
             />
           )}
 
