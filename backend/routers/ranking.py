@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 from database import get_db
-from models import User, DayMission, GroupMissionCheck, GroupMember
+from models import User, DayMission, GroupMissionCheck, GroupMember, GroupMission
 from schemas import RankingUserResponse, MyRankResponse
 from auth import get_current_user
 from datetime import date, timedelta
