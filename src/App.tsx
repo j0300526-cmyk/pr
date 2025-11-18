@@ -76,6 +76,11 @@ function App() {
   const [isAuthed, setIsAuthed] = useState(false);
   const [booting, setBooting] = useState(true);
 
+  const currentMissionsMemo = useMemo(
+    () => (selectedDate ? missions[selectedDate] || [] : []),
+    [selectedDate, missions]
+  );
+
   // ===== 헬퍼 함수들 =====
   const showError = (message: string) => {
     setErrorMessage(message);
@@ -864,10 +869,7 @@ function App() {
               formatDate={formatSelectedDate}
               isToday={isTodayDate}
               hasMissions={hasMissions}
-              currentMissions={useMemo(() => 
-                selectedDate ? missions[selectedDate] || [] : [],
-                [selectedDate, missions]
-              )}
+              currentMissions={currentMissionsMemo}
               allAvailableMissions={allAvailableMissions}
               deleteMission={deleteMission}
               setShowAddMission={setShowAddMission}
