@@ -41,7 +41,15 @@ export const dayMissionApi = {
 
   // 주간 완료 현황 조회
   getWeekSummary: async (dateStr?: string): Promise<DayCompletionSummary[]> => {
-    const query = dateStr ? `?date=${dateStr}` : "";
+    const normalized = dateStr?.trim();
+    let safeDate: string | undefined;
+    if (normalized) {
+      const candidate = normalized.slice(0, 10);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(candidate)) {
+        safeDate = candidate;
+      }
+    }
+    const query = safeDate ? `?date=${encodeURIComponent(safeDate)}` : "";
     return request<DayCompletionSummary[]>(`/days/week-summary${query}`);
   },
 };

@@ -1,7 +1,8 @@
 # 날짜별 미션 라우터
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Path
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
+from sqlalchemy.exc import SQLAlchemyError
 from database import get_db
 from models import DayMission, CatalogMission, User, WeeklyPersonalRoutine
 from schemas import (
@@ -17,10 +18,12 @@ from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 import json
 import os
+import logging
 from typing import List, Optional
 
 # KST(Asia/Seoul) 타임존 설정
 KST = ZoneInfo("Asia/Seoul")
+logger = logging.getLogger(__name__)
 
 def get_monday_of_week(target_date: date) -> date:
     """특정 날짜가 속한 주의 월요일 날짜를 반환"""
@@ -34,12 +37,129 @@ def get_sunday_of_week(target_date: date) -> date:
     sunday = target_date + timedelta(days=days_until_sunday)
     return sunday
 
+
+def resolve_target_date(raw_date: Optional[str]) -> date:
+    """
+    week-summary 요청 파라미터를 안전하게 파싱.
+    None/빈 문자열/undefined/null 등은 오늘 날짜로 대체하고, 잘못된 형식은 경고만 남긴다.
+    """
+    if not raw_date:
+        return datetime.now(KST).date()
+
+    normalized = raw_date.strip()
+    if not normalized or normalized.lower() in {"undefined", "null"}:
+        return datetime.now(KST).date()
+
+    candidate = normalized[:10]
+    try:
+        return date.fromisoformat(candidate)
+    except ValueError:
+        logger.warning("Invalid date input for week summary: %s", raw_date)
+        return datetime.now(KST).date()
+
 router = APIRouter(prefix="/days", tags=["날짜별 미션"])
+
+
+@router.get("/week-summary", response_model=List[DayCompletionSummary])
+async def get_week_summary(
+    date_str: Optional[str] = Query(
+        None, alias="date", description="기준 날짜 (YYYY-MM-DD, 기본값=오늘)"
+    ),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """특정 주간(월~일)의 완료 현황 요약"""
+    target_date = resolve_target_date(date_str)
+
+    week_start = get_monday_of_week(target_date)
+    sunday = get_sunday_of_week(week_start)
+
+    try:
+        day_missions = (
+            db.query(DayMission)
+            .filter(
+                and_(
+                    DayMission.user_id == current_user.id,
+                    DayMission.date >= week_start,
+                    DayMission.date <= sunday,
+                )
+            )
+            .all()
+        )
+
+        weekly_routines = (
+            db.query(WeeklyPersonalRoutine)
+            .filter(
+                and_(
+                    WeeklyPersonalRoutine.user_id == current_user.id,
+                    WeeklyPersonalRoutine.week_start_date == week_start,
+                )
+            )
+            .all()
+        )
+    except SQLAlchemyError:
+        logger.exception("Failed to query week summary data for user %s", current_user.id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="주간 요약 데이터를 불러오지 못했습니다.",
+        )
+
+    missions_by_date = {}
+    for mission in day_missions:
+        missions_by_date.setdefault(mission.date, []).append(mission)
+
+    valid_weekly_routines = []
+    for routine in weekly_routines:
+        if routine.start_date is None:
+            logger.warning("Weekly routine %s missing start_date. Skipping.", routine.id)
+            continue
+        valid_weekly_routines.append(routine)
+
+    summaries = {
+        week_start + timedelta(days=i): DayCompletionSummary(
+            date=week_start + timedelta(days=i),
+            total_missions=0,
+            completed_missions=0,
+            completion_rate=0.0,
+            is_day_perfectly_complete=False,
+        )
+        for i in range(7)
+    }
+
+    for offset in range(7):
+        current_date = week_start + timedelta(days=offset)
+        day_list = missions_by_date.get(current_date, [])
+        total_missions = len(day_list)
+        completed_missions = sum(1 for mission in day_list if mission.completed)
+
+        existing_keys = {(mission.mission_id, mission.sub_mission) for mission in day_list}
+
+        for routine in valid_weekly_routines:
+            if routine.start_date <= current_date <= sunday:
+                routine_key = (routine.mission_id, routine.sub_mission)
+                if routine_key not in existing_keys:
+                    total_missions += 1
+
+        completion_rate = (
+            completed_missions / total_missions if total_missions > 0 else 0.0
+        )
+        is_perfect = total_missions > 0 and completed_missions == total_missions
+
+        summaries[current_date] = DayCompletionSummary(
+            date=current_date,
+            total_missions=total_missions,
+            completed_missions=completed_missions,
+            completion_rate=completion_rate,
+            is_day_perfectly_complete=is_perfect,
+        )
+
+    return list(summaries.values())
+
 
 @router.get("/{date_str}/missions")
 @router.get("/{date_str}")  # 레거시 호환
 async def get_day_missions(
-    date_str: str,
+    date_str: str = Path(..., pattern=r"^\d{4}-\d{2}-\d{2}$"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -404,86 +524,13 @@ async def toggle_complete(
     
     return day_mission
 
+def _prioritize_week_summary_route():
+    week_path = "/days/week-summary"
+    for index, route in enumerate(router.routes):
+        if getattr(route, "path", None) == week_path:
+            route_to_move = router.routes.pop(index)
+            router.routes.insert(0, route_to_move)
+            break
 
-@router.get("/week-summary", response_model=List[DayCompletionSummary])
-async def get_week_summary(
-    date_str: Optional[str] = Query(None, description="기준 날짜 (YYYY-MM-DD, 기본값=오늘)"),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """특정 주간(월~일)의 완료 현황 요약"""
-    if date_str:
-        try:
-            target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)",
-            )
-    else:
-        target_date = datetime.now(KST).date()
 
-    week_start = get_monday_of_week(target_date)
-    sunday = get_sunday_of_week(week_start)
-
-    day_missions = (
-        db.query(DayMission)
-        .filter(
-            and_(
-                DayMission.user_id == current_user.id,
-                DayMission.date >= week_start,
-                DayMission.date <= sunday,
-            )
-        )
-        .all()
-    )
-
-    missions_by_date = {}
-    for mission in day_missions:
-        missions_by_date.setdefault(mission.date, []).append(mission)
-
-    weekly_routines = (
-        db.query(WeeklyPersonalRoutine)
-        .filter(
-            and_(
-                WeeklyPersonalRoutine.user_id == current_user.id,
-                WeeklyPersonalRoutine.week_start_date == week_start,
-            )
-        )
-        .all()
-    )
-
-    summaries: List[DayCompletionSummary] = []
-    current_date = week_start
-    while current_date <= sunday:
-        day_list = missions_by_date.get(current_date, [])
-        total_missions = len(day_list)
-        completed_missions = sum(1 for mission in day_list if mission.completed)
-
-        existing_keys = {(mission.mission_id, mission.sub_mission) for mission in day_list}
-
-        for routine in weekly_routines:
-            if routine.start_date <= current_date <= sunday:
-                routine_key = (routine.mission_id, routine.sub_mission)
-                if routine_key not in existing_keys:
-                    total_missions += 1
-
-        completion_rate = (
-            completed_missions / total_missions if total_missions > 0 else 0.0
-        )
-        is_perfect = total_missions > 0 and completed_missions == total_missions
-
-        summaries.append(
-            DayCompletionSummary(
-                date=current_date,
-                total_missions=total_missions,
-                completed_missions=completed_missions,
-                completion_rate=completion_rate,
-                is_day_perfectly_complete=is_perfect,
-            )
-        )
-
-        current_date += timedelta(days=1)
-
-    return summaries
-
+_prioritize_week_summary_route()
