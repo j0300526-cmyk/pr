@@ -121,6 +121,7 @@ function App() {
   const groupMissionLoadingRef = useRef<Set<string>>(new Set());
   const weekSummaryCacheRef = useRef<Map<string, { data: DayCompletionSummary[]; timestamp: number }>>(new Map());
   const weekSummaryLoadingRef = useRef<Set<string>>(new Set());
+  const followTodayRef = useRef(true);
 
   const [activeTab, setActiveTab] = useState<"personal" | "group">("personal");
   const [selectedGroupMission, setSelectedGroupMission] =
@@ -146,6 +147,22 @@ function App() {
   const currentMissionsMemo = useMemo(
     () => (selectedDate ? missions[selectedDate] || [] : []),
     [selectedDate, missions]
+  );
+
+  const updateSelectedDate = useCallback(
+    (nextDate: string | null, options?: { followToday?: boolean }) => {
+      if (typeof nextDate === "string") {
+        if (options?.followToday) {
+          followTodayRef.current = true;
+        } else {
+          followTodayRef.current = nextDate === getTodayKST();
+        }
+      } else {
+        followTodayRef.current = false;
+      }
+      setSelectedDate(nextDate);
+    },
+    [setSelectedDate]
   );
 
   // ===== 헬퍼 함수들 =====
@@ -293,7 +310,14 @@ function App() {
     setWeekDays(days);
     // 오늘이 포함된 날짜를 기본 선택 (없으면 월요일)
     const todayDay = days.find(d => d.isToday);
-    setSelectedDate((prev) => prev ?? todayDay?.fullDate ?? days[0]?.fullDate ?? null);
+    if (!selectedDate) {
+      const defaultDate = todayDay?.fullDate ?? days[0]?.fullDate ?? null;
+      if (defaultDate) {
+        updateSelectedDate(defaultDate, { followToday: true });
+      } else {
+        updateSelectedDate(null);
+      }
+    }
   };
 
   const loadDay = useCallback(
@@ -903,6 +927,13 @@ function App() {
     setSelectedInvitees([]);
   };
 
+  const handleSelectDate = useCallback(
+    (date: string) => {
+      updateSelectedDate(date);
+    },
+    [updateSelectedDate]
+  );
+
   const handleSendInvites = async () => {
     if (!selectedInviteGroupId) {
       showError("초대할 그룹을 선택해주세요.");
@@ -989,6 +1020,32 @@ function App() {
     };
     init();
   }, []);
+
+  // 날짜가 바뀌면 달력/선택 날짜를 자동 진행 (오늘을 보고 있는 경우)
+  useEffect(() => {
+    if (!isAuthed) {
+      return;
+    }
+
+    let lastKnownToday = getTodayKST();
+
+    const checkDayChange = () => {
+      const currentToday = getTodayKST();
+      if (currentToday === lastKnownToday) {
+        return;
+      }
+
+      lastKnownToday = currentToday;
+      setWeekDays(createWeekDays(new Date(currentToday)));
+
+      if (followTodayRef.current) {
+        updateSelectedDate(currentToday, { followToday: true });
+      }
+    };
+
+    const intervalId = window.setInterval(checkDayChange, 60 * 1000);
+    return () => window.clearInterval(intervalId);
+  }, [isAuthed, updateSelectedDate]);
 
   // 인증 후 데이터 로드
   useEffect(() => {
@@ -1192,7 +1249,7 @@ function App() {
               profileColor={profileColor}
               weekDays={weekDays}
               selectedDate={selectedDate}
-              setSelectedDate={setSelectedDate}
+              setSelectedDate={handleSelectDate}
               activeTab={activeTab}
               setActiveTab={setActiveTab}
               formatDate={formatSelectedDate}
