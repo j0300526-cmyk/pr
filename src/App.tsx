@@ -302,10 +302,19 @@ function App() {
     }
   }, [showError]);
 
-  // ★ 수정 포인트: 이미 선택된 날짜가 있으면 덮어쓰지 않기
   const initializeWeekDays = async (serverDate?: string) => {
-    // 서버 날짜가 있으면 사용, 없으면 KST 기준 클라이언트 날짜 사용
-    const centerDate = serverDate ? new Date(serverDate) : new Date(getTodayKST());
+    const normalizeDate = (value?: string | null) => {
+      if (!value) return null;
+      const iso = value.slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
+      return iso;
+    };
+    const serverDateStr = normalizeDate(serverDate);
+    const clientDateStr = getTodayKST();
+    // 서버 시간이 과거로 고정되어 있으면 클라이언트 날짜를 우선 사용
+    const effectiveDateStr =
+      serverDateStr && serverDateStr > clientDateStr ? serverDateStr : clientDateStr;
+    const centerDate = new Date(`${effectiveDateStr}T00:00:00Z`);
     const days = createWeekDays(centerDate);
     setWeekDays(days);
     // 오늘이 포함된 날짜를 기본 선택 (없으면 월요일)
