@@ -41,6 +41,18 @@ import type { DayCompletionSummary } from "./api/types";
 import RankingPage from "./pages/Ranking"; // 파일명 맞춰서
 import KakaoCallbackPage from "./pages/KakaoCallback";
 
+const DAY_CACHE_TTL = 30 * 1000;
+const GROUP_CACHE_TTL = 30 * 1000;
+const WEEK_SUMMARY_TTL = 60 * 1000;
+const GROUP_CACHE_BASE_KEY = "group:base";
+
+const summaryListToMap = (summary: DayCompletionSummary[]) => {
+  return summary.reduce<Record<string, DayCompletionSummary>>((acc, item) => {
+    acc[item.date] = item;
+    return acc;
+  }, {});
+};
+
 function App() {
   // ===== State =====
   const [userName, setUserName] = useState("");
@@ -60,10 +72,12 @@ function App() {
 
   // (missionId + submission) -> dayMissionPk 매핑
   const pkMapRef = useRef<Map<string, number>>(new Map());
-  const makeMissionKey = (missionId: number, submission: string) =>
-    `${missionId}::${submission}`;
+  const makeMissionKey = useCallback(
+    (missionId: number, submission: string) => `${missionId}::${submission}`,
+    []
+  );
 
-  const normalizeParticipants = (participants: any): GroupParticipant[] => {
+  const normalizeParticipants = useCallback((participants: any): GroupParticipant[] => {
     if (!Array.isArray(participants)) return [];
     return (
       participants
@@ -91,17 +105,23 @@ function App() {
         })
         .filter(Boolean) as GroupParticipant[]
     );
-  };
+  }, []);
 
-  const normalizeMissionParticipants = (mission: Mission | any): Mission => {
+  const normalizeMissionParticipants = useCallback((mission: Mission | any): Mission => {
     return {
       ...(mission || {}),
       participants: normalizeParticipants(mission?.participants),
     } as Mission;
-  };
+  }, [normalizeParticipants]);
   
   // API 호출 중복 방지를 위한 로딩 상태 추적
   const loadingDatesRef = useRef<Set<string>>(new Set());
+  const dayCacheRef = useRef<Map<string, { data: PersonalMissionEntry[]; timestamp: number }>>(new Map());
+  const groupMissionCacheRef = useRef<Map<string, { data: Mission[]; timestamp: number }>>(new Map());
+  const groupMissionLoadingRef = useRef<Set<string>>(new Set());
+  const weekSummaryCacheRef = useRef<Map<string, { data: DayCompletionSummary[]; timestamp: number }>>(new Map());
+  const weekSummaryLoadingRef = useRef<Set<string>>(new Set());
+  const followTodayRef = useRef(true);
 
   const [activeTab, setActiveTab] = useState<"personal" | "group">("personal");
   const [selectedGroupMission, setSelectedGroupMission] =
@@ -129,11 +149,70 @@ function App() {
     [selectedDate, missions]
   );
 
+  const updateSelectedDate = useCallback(
+    (nextDate: string | null, options?: { followToday?: boolean }) => {
+      if (typeof nextDate === "string") {
+        if (options?.followToday) {
+          followTodayRef.current = true;
+        } else {
+          followTodayRef.current = nextDate === getTodayKST();
+        }
+      } else {
+        followTodayRef.current = false;
+      }
+      setSelectedDate(nextDate);
+    },
+    [setSelectedDate]
+  );
+
   // ===== 헬퍼 함수들 =====
   const showError = useCallback((message: string) => {
     setErrorMessage(message);
     setTimeout(() => setErrorMessage(""), 3000);
   }, []);
+
+  const getWeekDates = useCallback((iso: string | null) => {
+    if (!iso) return [];
+    const parts = iso.split("-");
+    if (parts.length !== 3) return [];
+    const numericParts = parts.map((value) => Number(value));
+    if (numericParts.some((value) => Number.isNaN(value))) {
+      return [];
+    }
+
+    const [year, month, day] = numericParts;
+    const baseDate = new Date(Date.UTC(year, month - 1, day));
+    const dayOfWeek = baseDate.getUTCDay(); // 0=일요일
+    const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = new Date(baseDate);
+    monday.setUTCDate(baseDate.getUTCDate() + diff);
+
+    const dates: string[] = [];
+    for (let i = 0; i < 7; i += 1) {
+      const current = new Date(monday);
+      current.setUTCDate(monday.getUTCDate() + i);
+      dates.push(current.toISOString().slice(0, 10));
+    }
+    return dates;
+  }, []);
+
+  const buildEmptyWeekSummary = useCallback(
+    (iso: string | null) => {
+      const weekDates = getWeekDates(iso);
+      if (!weekDates.length) return {};
+      return weekDates.reduce<Record<string, DayCompletionSummary>>((acc, current) => {
+        acc[current] = {
+          date: current,
+          total_missions: 0,
+          completed_missions: 0,
+          completion_rate: 0,
+          is_day_perfectly_complete: false,
+        };
+        return acc;
+      }, {});
+    },
+    [getWeekDates]
+  );
 
   const getVal = (res: unknown): string | null => {
     if (typeof res === "string") return res;
@@ -149,20 +228,55 @@ function App() {
   };
 
   const refreshWeekSummary = useCallback(
-    async (dateStr: string) => {
+    async (dateStr: string, options?: { force?: boolean }) => {
       if (!dateStr) return;
+      const weekDates = getWeekDates(dateStr);
+      if (!weekDates.length) return;
+
+      const weekKey = weekDates[0];
+      const forceReload = options?.force ?? false;
+
+      if (forceReload) {
+        weekSummaryCacheRef.current.delete(weekKey);
+      } else {
+        const cached = weekSummaryCacheRef.current.get(weekKey);
+        if (cached && Date.now() - cached.timestamp < WEEK_SUMMARY_TTL) {
+          setDayCompletionMap((prev) => ({
+            ...prev,
+            ...summaryListToMap(cached.data),
+          }));
+          return;
+        }
+      }
+
+      if (weekSummaryLoadingRef.current.has(weekKey)) {
+        return;
+      }
+
+      weekSummaryLoadingRef.current.add(weekKey);
+
       try {
         const summary = await dayMissionApi.getWeekSummary(dateStr);
-        const map = summary.reduce<Record<string, DayCompletionSummary>>((acc, item) => {
-          acc[item.date] = item;
-          return acc;
-        }, {});
-        setDayCompletionMap(map);
+        weekSummaryCacheRef.current.set(weekKey, {
+          data: summary,
+          timestamp: Date.now(),
+        });
+        setDayCompletionMap((prev) => ({
+          ...prev,
+          ...summaryListToMap(summary),
+        }));
       } catch (error) {
         console.error("주간 완료 상태를 불러오지 못했어요:", error);
+        const fallback = buildEmptyWeekSummary(dateStr);
+        if (Object.keys(fallback).length > 0) {
+          setDayCompletionMap((prev) => ({ ...prev, ...fallback }));
+        }
+        showError("주간 완료 상태를 불러오지 못했어요");
+      } finally {
+        weekSummaryLoadingRef.current.delete(weekKey);
       }
     },
-    []
+    [buildEmptyWeekSummary, getWeekDates, showError]
   );
 
   const loadInviteCandidates = useCallback(async () => {
@@ -188,40 +302,69 @@ function App() {
     }
   }, [showError]);
 
-  // ★ 수정 포인트: 이미 선택된 날짜가 있으면 덮어쓰지 않기
   const initializeWeekDays = async (serverDate?: string) => {
-    // 서버 날짜가 있으면 사용, 없으면 KST 기준 클라이언트 날짜 사용
-    const centerDate = serverDate ? new Date(serverDate) : new Date(getTodayKST());
+    const normalizeDate = (value?: string | null) => {
+      if (!value) return null;
+      const iso = value.slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
+      return iso;
+    };
+    const serverDateStr = normalizeDate(serverDate);
+    const clientDateStr = getTodayKST();
+    // 서버 시간이 과거로 고정되어 있으면 클라이언트 날짜를 우선 사용
+    const effectiveDateStr =
+      serverDateStr && serverDateStr > clientDateStr ? serverDateStr : clientDateStr;
+    const centerDate = new Date(`${effectiveDateStr}T00:00:00Z`);
     const days = createWeekDays(centerDate);
     setWeekDays(days);
     // 오늘이 포함된 날짜를 기본 선택 (없으면 월요일)
     const todayDay = days.find(d => d.isToday);
-    setSelectedDate((prev) => prev ?? todayDay?.fullDate ?? days[0]?.fullDate ?? null);
+    if (!selectedDate) {
+      const defaultDate = todayDay?.fullDate ?? days[0]?.fullDate ?? null;
+      if (defaultDate) {
+        updateSelectedDate(defaultDate, { followToday: true });
+      } else {
+        updateSelectedDate(null);
+      }
+    }
   };
 
-  const loadDay = useCallback(async (dateStr: string) => {
-    // 중복 호출 방지: 이미 로딩 중인 날짜는 무시
-    if (loadingDatesRef.current.has(dateStr)) {
-      return;
-    }
-    
-    // 로딩 상태 추가
-    loadingDatesRef.current.add(dateStr);
-    
-    // 날짜 변경 시 즉시 빈 배열로 초기화하여 이전 날짜 미션이 보이지 않도록 함
-    setMissions((prev) => ({ ...prev, [dateStr]: [] }));
-    
-    try {
-      const data: any = await api(`/days/${dateStr}`);
-      const entries =
-        Array.isArray(data)
+  const loadDay = useCallback(
+    async (dateStr: string, options?: { force?: boolean }) => {
+      const forceReload = options?.force ?? false;
+      if (!dateStr) return;
+
+      if (forceReload) {
+        dayCacheRef.current.delete(dateStr);
+      } else {
+        const cached = dayCacheRef.current.get(dateStr);
+        if (cached && Date.now() - cached.timestamp < DAY_CACHE_TTL) {
+          setMissions((prev) => ({ ...prev, [dateStr]: cached.data }));
+          return;
+        }
+      }
+
+      // 중복 호출 방지: 이미 로딩 중인 날짜는 무시
+      if (loadingDatesRef.current.has(dateStr)) {
+        return;
+      }
+
+      loadingDatesRef.current.add(dateStr);
+
+      // 캐시가 없을 때만 UI를 비워 깜빡임 최소화
+      if (!dayCacheRef.current.has(dateStr)) {
+        setMissions((prev) => ({ ...prev, [dateStr]: [] }));
+      }
+
+      try {
+        const data: any = await api(`/days/${dateStr}`);
+        const entries = Array.isArray(data)
           ? data.map((x: any) => {
               const fallbackName =
                 x?.mission?.name ||
                 (Array.isArray(x?.mission?.submissions) && x.mission.submissions.length
                   ? x.mission.submissions[0]
-                  : x?.mission?.category ||
-                    `미션-${x?.mission?.id ?? ""}`);
+                  : x?.mission?.category || `미션-${x?.mission?.id ?? ""}`);
               return {
                 missionId: Number(x?.mission?.id),
                 submission: x?.sub_mission || fallbackName,
@@ -232,38 +375,41 @@ function App() {
               };
             })
           : [];
-      setMissions((prev) => ({ ...prev, [dateStr]: entries }));
-      await refreshWeekSummary(dateStr);
-
-      const map = new Map<string, number>();
-      if (Array.isArray(data)) {
-        data.forEach((x: any) => {
-          const fallbackName =
-            x?.mission?.name ||
-            (Array.isArray(x?.mission?.submissions) && x.mission.submissions.length
-              ? x.mission.submissions[0]
-              : x?.mission?.category ||
-                `미션-${x?.mission?.id ?? ""}`);
-          const submission = x?.sub_mission || fallbackName;
-          // dayMissionId가 있는 경우에만 매핑 (주간 루틴은 id가 없을 수 있음)
-          if (x?.id) {
-            map.set(
-              makeMissionKey(Number(x?.mission?.id), submission),
-              Number(x.id)
-            );
-          }
+        setMissions((prev) => ({ ...prev, [dateStr]: entries }));
+        dayCacheRef.current.set(dateStr, {
+          data: entries,
+          timestamp: Date.now(),
         });
+
+        const map = new Map<string, number>();
+        if (Array.isArray(data)) {
+          data.forEach((x: any) => {
+            const fallbackName =
+              x?.mission?.name ||
+              (Array.isArray(x?.mission?.submissions) && x.mission.submissions.length
+                ? x.mission.submissions[0]
+                : x?.mission?.category || `미션-${x?.mission?.id ?? ""}`);
+            const submission = x?.sub_mission || fallbackName;
+            if (x?.id) {
+              map.set(
+                makeMissionKey(Number(x?.mission?.id), submission),
+                Number(x.id)
+              );
+            }
+          });
+        }
+        pkMapRef.current = map;
+      } catch {
+        if (forceReload) {
+          dayCacheRef.current.delete(dateStr);
+        }
+        showError("해당 날짜의 미션을 불러오지 못했어요");
+      } finally {
+        loadingDatesRef.current.delete(dateStr);
       }
-      pkMapRef.current = map;
-    } catch {
-      // 실패해도 빈 배열로 유지하여 이전 날짜 미션이 보이지 않도록 함
-      setMissions((prev) => ({ ...prev, [dateStr]: [] }));
-      showError("해당 날짜의 미션을 불러오지 못했어요");
-    } finally {
-      // 로딩 상태 제거
-      loadingDatesRef.current.delete(dateStr);
-    }
-  }, [makeMissionKey, refreshWeekSummary, showError]);
+    },
+    [makeMissionKey, showError]
+  );
 
   const fetchAvailableMissions = async () => {
     try {
@@ -450,6 +596,49 @@ function App() {
     return missions[selectedDate] || [];
   };
 
+  const getGroupCacheKey = (dateStr?: string | null) =>
+    dateStr ? `group:${dateStr}` : GROUP_CACHE_BASE_KEY;
+
+  const fetchMyGroups = useCallback(
+    async (dateStr?: string | null, options?: { force?: boolean }) => {
+      const forceReload = options?.force ?? false;
+      const cacheKey = getGroupCacheKey(dateStr);
+
+      if (!forceReload) {
+        const cached = groupMissionCacheRef.current.get(cacheKey);
+        if (cached && Date.now() - cached.timestamp < GROUP_CACHE_TTL) {
+          setMyGroupMissions(cached.data);
+          return cached.data;
+        }
+      } else {
+        groupMissionCacheRef.current.delete(cacheKey);
+      }
+
+      if (groupMissionLoadingRef.current.has(cacheKey)) {
+        return groupMissionCacheRef.current.get(cacheKey)?.data ?? [];
+      }
+
+      groupMissionLoadingRef.current.add(cacheKey);
+
+      try {
+        const { groupMissionApi } = await import("./api/groupMission");
+        const groups = await groupMissionApi.getMyGroups(dateStr || undefined);
+        const normalized = groups.map((mission: Mission) =>
+          normalizeMissionParticipants(mission)
+        );
+        groupMissionCacheRef.current.set(cacheKey, {
+          data: normalized,
+          timestamp: Date.now(),
+        });
+        setMyGroupMissions(normalized);
+        return normalized;
+      } finally {
+        groupMissionLoadingRef.current.delete(cacheKey);
+      }
+    },
+    [normalizeMissionParticipants]
+  );
+
   const deleteMission = async (index: number) => {
     if (!selectedDate) return;
     const current = getCurrentMissions();
@@ -466,7 +655,7 @@ function App() {
         // 주간 루틴 삭제 후 전체 주간 미션 다시 로드
         if (weekDays && weekDays.length > 0) {
           for (const day of weekDays) {
-            await loadDay(day.fullDate);
+            await loadDay(day.fullDate, { force: true });
           }
         }
       } else {
@@ -484,6 +673,10 @@ function App() {
         const next = { ...missions, [selectedDate]: updated };
         setMissions(next);
         saveUserData(next);
+        dayCacheRef.current.set(selectedDate, {
+          data: updated,
+          timestamp: Date.now(),
+        });
       }
     } catch {
       showError("미션 삭제에 실패했어요");
@@ -539,7 +732,7 @@ function App() {
       // 현재 주의 모든 날짜의 미션 다시 로드
       if (weekDays && weekDays.length > 0) {
         for (const day of weekDays) {
-          await loadDay(day.fullDate);
+          await loadDay(day.fullDate, { force: true });
         }
       }
     } catch (error: any) {
@@ -596,14 +789,13 @@ function App() {
       showError("주간 루틴이 추가되었어요!");
       // 모든 날짜의 미션 다시 로드 (주간 루틴이 모든 날짜에 표시되도록)
       if (selectedDate) {
-        loadDay(selectedDate);
+        await loadDay(selectedDate, { force: true });
       }
-      // 주간의 다른 날짜들도 로드
-      weekDays.forEach((day) => {
+      for (const day of weekDays) {
         if (day.fullDate !== selectedDate) {
-          loadDay(day.fullDate);
+          await loadDay(day.fullDate, { force: true });
         }
-      });
+      }
     } catch (error: any) {
       if (error?.status === 400) {
         showError(error.message || "주간 루틴을 추가할 수 없습니다.");
@@ -647,6 +839,7 @@ function App() {
       const next = [...myGroupMissions, normalized];
       setMyGroupMissions(next);
       saveMyGroups(next);
+      groupMissionCacheRef.current.clear();
     } catch (error: any) {
       const status = (error as any)?.status;
       if (status === 409) {
@@ -668,6 +861,7 @@ function App() {
       const next = myGroupMissions.filter((m) => m.id !== missionId);
       setMyGroupMissions(next);
       saveMyGroups(next);
+      groupMissionCacheRef.current.clear();
       if (selectedGroupMission && selectedGroupMission.id === missionId) {
         setSelectedGroupMission(null);
       }
@@ -691,6 +885,7 @@ function App() {
       const next = [...myGroupMissions, normalizedJoined];
       setMyGroupMissions(next);
       saveMyGroups(next);
+      groupMissionCacheRef.current.clear();
       
       // 추천 그룹 목록 새로고침
       try {
@@ -740,6 +935,13 @@ function App() {
     setSelectedInviteGroupId(groupId);
     setSelectedInvitees([]);
   };
+
+  const handleSelectDate = useCallback(
+    (date: string) => {
+      updateSelectedDate(date);
+    },
+    [updateSelectedDate]
+  );
 
   const handleSendInvites = async () => {
     if (!selectedInviteGroupId) {
@@ -828,6 +1030,32 @@ function App() {
     init();
   }, []);
 
+  // 날짜가 바뀌면 달력/선택 날짜를 자동 진행 (오늘을 보고 있는 경우)
+  useEffect(() => {
+    if (!isAuthed) {
+      return;
+    }
+
+    let lastKnownToday = getTodayKST();
+
+    const checkDayChange = () => {
+      const currentToday = getTodayKST();
+      if (currentToday === lastKnownToday) {
+        return;
+      }
+
+      lastKnownToday = currentToday;
+      setWeekDays(createWeekDays(new Date(currentToday)));
+
+      if (followTodayRef.current) {
+        updateSelectedDate(currentToday, { followToday: true });
+      }
+    };
+
+    const intervalId = window.setInterval(checkDayChange, 60 * 1000);
+    return () => window.clearInterval(intervalId);
+  }, [isAuthed, updateSelectedDate]);
+
   // 인증 후 데이터 로드
   useEffect(() => {
   if (!isAuthed) return;
@@ -880,16 +1108,12 @@ function App() {
       
       // 2) 서버에서 그룹 미션 목록 가져오기 시도
       try {
-        const { groupMissionApi } = await import("./api");
-        const groups = await groupMissionApi.getMyGroups();
-        const normalizedGroups = groups.map((mission: Mission) =>
-          normalizeMissionParticipants(mission)
-        );
-        setMyGroupMissions(normalizedGroups);
+        const normalizedGroups = await fetchMyGroups(undefined, { force: true });
         saveMyGroups(normalizedGroups);
 
         // 추천 그룹 목록도 가져오기
         try {
+          const { groupMissionApi } = await import("./api/groupMission");
           const recommended = await groupMissionApi.getRecommended();
           setRecommendedGroupMissions(
             recommended.map((mission: Mission) => normalizeMissionParticipants(mission))
@@ -932,35 +1156,39 @@ function App() {
 }, [isAuthed, loadInviteCandidates]);
 
 
-  // 날짜 변경 시 해당 날짜 미션 로드 및 그룹 미션 체크 상태 불러오기
+  // 날짜가 바뀌었을 때만 개인/그룹 미션 데이터를 새로 불러온다.
   useEffect(() => {
-    if (selectedDate && isAuthed) {
-      // 날짜가 변경되면 즉시 해당 날짜의 미션을 초기화
-      setMissions((prev) => {
-        // 이미 해당 날짜의 미션이 있으면 유지, 없으면 빈 배열로 초기화
-        if (prev[selectedDate] === undefined) {
-          return { ...prev, [selectedDate]: [] };
-        }
-        return prev;
-      });
-      loadDay(selectedDate);
-      
-      // 그룹 미션 체크 상태 불러오기
-      const loadGroupMissions = async () => {
-        try {
-          const { groupMissionApi } = await import("./api/groupMission");
-          const groups = await groupMissionApi.getMyGroups(selectedDate);
-          const normalized = groups.map((mission: Mission) =>
-            normalizeMissionParticipants(mission)
-          );
-          setMyGroupMissions(normalized);
-        } catch (error) {
-          console.error("그룹 미션 체크 상태 불러오기 실패:", error);
-        }
-      };
-      loadGroupMissions();
+    if (!selectedDate || !isAuthed) {
+      return;
     }
-  }, [selectedDate, isAuthed, loadDay]);
+
+    setMissions((prev) => {
+      if (prev[selectedDate] === undefined) {
+        return { ...prev, [selectedDate]: [] };
+      }
+      return prev;
+    });
+    void loadDay(selectedDate);
+    fetchMyGroups(selectedDate).catch((error) => {
+      console.error("그룹 미션 체크 상태 불러오기 실패:", error);
+    });
+  }, [selectedDate, isAuthed, loadDay, fetchMyGroups]);
+
+  // 주간 요약은 선택된 날짜(또는 주)가 바뀔 때만 새로 불러온다.
+  useEffect(() => {
+    if (!selectedDate || !isAuthed) return;
+    void refreshWeekSummary(selectedDate);
+  }, [selectedDate, isAuthed, refreshWeekSummary]);
+
+  useEffect(() => {
+    if (!isAuthed) {
+      dayCacheRef.current.clear();
+      groupMissionCacheRef.current.clear();
+      groupMissionLoadingRef.current.clear();
+      weekSummaryCacheRef.current.clear();
+      weekSummaryLoadingRef.current.clear();
+    }
+  }, [isAuthed]);
 
   // 모달 열릴 때 모든 미션으로 초기화
   useEffect(() => {
@@ -1030,7 +1258,7 @@ function App() {
               profileColor={profileColor}
               weekDays={weekDays}
               selectedDate={selectedDate}
-              setSelectedDate={setSelectedDate}
+              setSelectedDate={handleSelectDate}
               activeTab={activeTab}
               setActiveTab={setActiveTab}
               formatDate={formatSelectedDate}
