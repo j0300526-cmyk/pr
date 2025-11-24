@@ -25,7 +25,7 @@ interface Props {
   setSelectedGroupMission: (m: Mission) => void;
   currentStreak: number;
   onProfileClick?: () => void;
-  loadDay?: (dateStr: string, options?: { force?: boolean }) => Promise<void>;
+  loadDay?: (dateStr: string) => Promise<void>;
 }
 
 export default function HomePage({
@@ -121,7 +121,7 @@ export default function HomePage({
         }
         // 주간 루틴 체크 후 미션 목록 다시 불러오기
         if (loadDay && selectedDate) {
-          await loadDay(selectedDate, { force: true });
+          await loadDay(selectedDate);
         }
       } else {
         // 일일 미션인 경우 toggleComplete API 사용
@@ -133,7 +133,7 @@ export default function HomePage({
           );
           // 일일 미션 체크 후 미션 목록 다시 불러오기 (completed 상태 업데이트)
           if (loadDay && selectedDate) {
-            await loadDay(selectedDate, { force: true });
+            await loadDay(selectedDate);
           }
         }
       }
