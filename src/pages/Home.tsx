@@ -324,11 +324,7 @@ export default function HomePage({
             disabled={!selectedDate}
           >
             <Plus size={22} />
-            <span className="text-sm">
-              {selectedDate
-                ? `${formatDate()}부터 이번 주 일요일까지 루틴 추가`
-                : "날짜를 선택해주세요"}
-            </span>
+            <span className="text-sm">오늘부터 미션시작하기!</span>
           </button>
         </div>
       )}
