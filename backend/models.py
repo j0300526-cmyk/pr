@@ -95,6 +95,7 @@ class GroupMissionCheck(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     date = Column(Date, nullable=False, index=True)
     completed = Column(Boolean, default=False)
+    submission = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # 관계

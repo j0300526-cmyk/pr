@@ -111,6 +111,7 @@ class GroupMissionResponse(GroupMissionBase):
 class GroupMissionCheckRequest(BaseModel):
     date: date
     completed: bool
+    submission: Optional[str] = None
 
 # ===== 완료 요약 =====
 class DayCompletionSummary(BaseModel):

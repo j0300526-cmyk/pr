@@ -273,12 +273,14 @@ async def check_group_mission(
     
     if check:
         check.completed = check_data.completed
+        check.submission = check_data.submission
     else:
         check = GroupMissionCheck(
             group_mission_id=group_id,
             user_id=current_user.id,
             date=check_data.date,
-            completed=check_data.completed
+            completed=check_data.completed,
+            submission=check_data.submission
         )
         db.add(check)
     
