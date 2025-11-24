@@ -60,10 +60,8 @@ function App() {
 
   // (missionId + submission) -> dayMissionPk 매핑
   const pkMapRef = useRef<Map<string, number>>(new Map());
-  const makeMissionKey = useCallback(
-    (missionId: number, submission: string) => `${missionId}::${submission}`,
-    []
-  );
+  const makeMissionKey = (missionId: number, submission: string) =>
+    `${missionId}::${submission}`;
 
   const normalizeParticipants = (participants: any): GroupParticipant[] => {
     if (!Array.isArray(participants)) return [];
@@ -104,7 +102,6 @@ function App() {
   
   // API 호출 중복 방지를 위한 로딩 상태 추적
   const loadingDatesRef = useRef<Set<string>>(new Set());
-  const lastWeekSummaryRef = useRef<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<"personal" | "group">("personal");
   const [selectedGroupMission, setSelectedGroupMission] =
@@ -138,49 +135,6 @@ function App() {
     setTimeout(() => setErrorMessage(""), 3000);
   }, []);
 
-  const getWeekDates = useCallback((iso: string | null) => {
-    if (!iso) return [];
-    const parts = iso.split("-");
-    if (parts.length !== 3) return [];
-    const numericParts = parts.map((value) => Number(value));
-    if (numericParts.some((value) => Number.isNaN(value))) {
-      return [];
-    }
-
-    const [year, month, day] = numericParts;
-    const baseDate = new Date(Date.UTC(year, month - 1, day));
-    const dayOfWeek = baseDate.getUTCDay(); // 0=일요일
-    const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-    const monday = new Date(baseDate);
-    monday.setUTCDate(baseDate.getUTCDate() + diff);
-
-    const dates: string[] = [];
-    for (let i = 0; i < 7; i += 1) {
-      const current = new Date(monday);
-      current.setUTCDate(monday.getUTCDate() + i);
-      dates.push(current.toISOString().slice(0, 10));
-    }
-    return dates;
-  }, []);
-
-  const buildEmptyWeekSummary = useCallback(
-    (iso: string | null) => {
-      const weekDates = getWeekDates(iso);
-      if (!weekDates.length) return {};
-      return weekDates.reduce<Record<string, DayCompletionSummary>>((acc, current) => {
-        acc[current] = {
-          date: current,
-          total_missions: 0,
-          completed_missions: 0,
-          completion_rate: 0,
-          is_day_perfectly_complete: false,
-        };
-        return acc;
-      }, {});
-    },
-    [getWeekDates]
-  );
-
   const getVal = (res: unknown): string | null => {
     if (typeof res === "string") return res;
     if (
@@ -203,17 +157,12 @@ function App() {
           acc[item.date] = item;
           return acc;
         }, {});
-        setDayCompletionMap((prev) => ({ ...prev, ...map }));
+        setDayCompletionMap(map);
       } catch (error) {
         console.error("주간 완료 상태를 불러오지 못했어요:", error);
-        const fallback = buildEmptyWeekSummary(dateStr);
-        if (Object.keys(fallback).length > 0) {
-          setDayCompletionMap((prev) => ({ ...prev, ...fallback }));
-        }
-        showError("주간 완료 상태를 불러오지 못했어요");
       }
     },
-    [buildEmptyWeekSummary, showError]
+    []
   );
 
   const loadInviteCandidates = useCallback(async () => {
@@ -284,6 +233,7 @@ function App() {
             })
           : [];
       setMissions((prev) => ({ ...prev, [dateStr]: entries }));
+      await refreshWeekSummary(dateStr);
 
       const map = new Map<string, number>();
       if (Array.isArray(data)) {
@@ -313,7 +263,7 @@ function App() {
       // 로딩 상태 제거
       loadingDatesRef.current.delete(dateStr);
     }
-  }, [makeMissionKey, showError]);
+  }, [makeMissionKey, refreshWeekSummary, showError]);
 
   const fetchAvailableMissions = async () => {
     try {
@@ -1011,22 +961,6 @@ function App() {
       loadGroupMissions();
     }
   }, [selectedDate, isAuthed, loadDay]);
-
-  useEffect(() => {
-    if (!selectedDate || !isAuthed) return;
-    const weekDates = getWeekDates(selectedDate);
-    if (!weekDates.length) return;
-    const weekKey = weekDates[0];
-    if (lastWeekSummaryRef.current === weekKey) return;
-    lastWeekSummaryRef.current = weekKey;
-    void refreshWeekSummary(selectedDate);
-  }, [selectedDate, isAuthed, getWeekDates, refreshWeekSummary]);
-
-  useEffect(() => {
-    if (!isAuthed) {
-      lastWeekSummaryRef.current = null;
-    }
-  }, [isAuthed]);
 
   // 모달 열릴 때 모든 미션으로 초기화
   useEffect(() => {
