@@ -6,7 +6,6 @@ interface Props {
   visible: boolean;
   loading: boolean;
   availableMissions: CatalogMission[];
-  onSearch: (q: string) => void;
   onAdd: (selection: { missionId: number; submissions: string[] }) => void | Promise<void>;
   onClose: () => void;
 }
@@ -20,7 +19,6 @@ export default function AddMissionModal({
   visible,
   loading,
   availableMissions,
-  onSearch,
   onAdd,
   onClose,
 }: Props) {
@@ -28,12 +26,10 @@ export default function AddMissionModal({
     categoryId: null,
     selectedExamples: [],
   });
-  const [searchText, setSearchText] = useState("");
 
   useEffect(() => {
     if (!visible) {
       setSelection({ categoryId: null, selectedExamples: [] });
-      setSearchText("");
     } else {
       // 디버그: 모달이 열렸을 때 미션 데이터 확인
       console.log("[AddMissionModal] 모달 열림");
@@ -47,17 +43,7 @@ export default function AddMissionModal({
   const selectedCategory = availableMissions.find((m) => m.id === selection.categoryId);
   const exampleList = selectedCategory?.submissions || [];
 
-  const filteredCategories = searchText
-    ? availableMissions.filter((m) => {
-        const q = searchText.toLowerCase();
-        const inCategory = m.category.toLowerCase().includes(q);
-        const inSubmissions = (m.submissions || []).some((s) =>
-          s.toLowerCase().includes(q)
-        );
-        const inName = (m.name || "").toLowerCase().includes(q);
-        return inCategory || inSubmissions || inName;
-      })
-    : availableMissions;
+  const filteredCategories = availableMissions;
 
   const handleCategorySelect = (categoryId: number) => {
     console.log("[AddMissionModal] 대주제 선택:", categoryId);
@@ -78,21 +64,6 @@ export default function AddMissionModal({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-3xl p-6 w-full max-w-sm max-h-[90vh] overflow-y-auto">
         <h3 className="text-xl font-bold mb-2">개인 미션 추가하기</h3>
-        <p className="text-xs text-gray-500 mb-4">
-          * 대주제를 선택한 뒤 여러 소주제를 함께 선택할 수 있어요.
-        </p>
-
-        {/* 검색 입력 */}
-        <input
-          type="text"
-          placeholder="카테고리 검색..."
-          value={searchText}
-          onChange={(e) => {
-            setSearchText(e.target.value);
-            onSearch(e.target.value);
-          }}
-          className="w-full px-4 py-2 border-2 border-gray-200 rounded-2xl mb-4 focus:outline-none focus:border-green-300"
-        />
 
         {/* 대주제 선택 (1단계) */}
         <div className="mb-4">

@@ -62,9 +62,6 @@ function App() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [showAddMission, setShowAddMission] = useState(false);
 
-  const [availableMissions, setAvailableMissions] = useState<CatalogMission[]>(
-    []
-  );
   const [allAvailableMissions, setAllAvailableMissions] = useState<
     CatalogMission[]
   >([]);
@@ -451,7 +448,6 @@ function App() {
         ];
       }
 
-      setAvailableMissions(list);
       setAllAvailableMissions(list);
       await safeStorage.set(
         STORAGE_KEYS.availableMissions,
@@ -849,14 +845,6 @@ function App() {
     setShowAddMission(false);
   };
 
-  const handleMissionSearch = (q: string) => {
-    const query = q.trim().toLowerCase();
-    const filtered = allAvailableMissions.filter((x) =>
-      x.category.toLowerCase().includes(query) || x.submissions.some(sub => sub.toLowerCase().includes(query))
-    );
-    setAvailableMissions(query ? filtered : allAvailableMissions);
-  };
-
   const formatSelectedDate = () => formatDateLabel(selectedDate);
   const isPerfectDay = useCallback(
     (dateStr: string): boolean =>
@@ -1231,13 +1219,6 @@ function App() {
     }
   }, [isAuthed]);
 
-  // 모달 열릴 때 모든 미션으로 초기화
-  useEffect(() => {
-    if (showAddMission) {
-      setAvailableMissions(allAvailableMissions);
-    }
-  }, [showAddMission, allAvailableMissions]);
-
   useEffect(() => {
     if (myGroupMissions.length === 0) {
       setSelectedInviteGroupId(null);
@@ -1374,7 +1355,6 @@ function App() {
         visible={showAddMission}
         loading={loadingAvailable}
         availableMissions={allAvailableMissions}
-        onSearch={handleMissionSearch}
         onAdd={handleAddMissionSelections}
         onClose={() => {
           setShowAddMission(false);
