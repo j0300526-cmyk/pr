@@ -151,6 +151,12 @@ class WeeklyPersonalRoutine(Base):
     
     # 복합 유니크: 같은 주에 같은 미션은 한 번만 (sub_mission 제외)
     __table_args__ = (
-        UniqueConstraint('user_id', 'week_start_date', 'mission_id', name='uq_user_week_mission'),
+        UniqueConstraint(
+            'user_id',
+            'week_start_date',
+            'mission_id',
+            'sub_mission',
+            name='uq_user_week_mission_submission'
+        ),
     )
 

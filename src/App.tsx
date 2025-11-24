@@ -684,16 +684,19 @@ function App() {
     }
   };
 
-  const addMission = async ({
-    missionId,
-    submission,
-  }: {
-    missionId: number;
-    submission: string;
-  }) => {
+  const addMission = async (
+    {
+      missionId,
+      submission,
+    }: {
+      missionId: number;
+      submission: string;
+    },
+    options?: { autoClose?: boolean }
+  ): Promise<boolean> => {
     if (!selectedDate) {
       showError("날짜를 선택해주세요.");
-      return;
+      return false;
     }
 
     if (import.meta.env.DEV) {
@@ -705,30 +708,32 @@ function App() {
     const exists = allAvailableMissions.some((m) => m.id === missionId);
     if (!exists) {
       showError("서버에 등록된 미션만 추가할 수 있어요.");
-      return;
+      return false;
     }
 
-    if (!submission || !submission.trim()) {
+    const trimmedSubmission = submission?.trim();
+    if (!trimmedSubmission) {
       showError("소주제를 선택해주세요.");
-      return;
+      return false;
     }
 
     // 주간 루틴 API 사용 (selectedDate부터 그 주 일요일까지 자동 생성)
     try {
       const response: any = await api(`/personal-routines`, {
         method: "POST",
-        body: JSON.stringify({ 
-          mission_id: missionId, 
-          date: selectedDate  // 선택한 날짜 기준으로 루틴 생성
+        body: JSON.stringify({
+          mission_id: missionId,
+          date: selectedDate, // 선택한 날짜 기준으로 루틴 생성
+          submission: trimmedSubmission,
         }),
       });
-      
+
       if (import.meta.env.DEV) {
         console.log("[DEBUG addMission] 주간 루틴 추가 성공:", response);
       }
-      
+
       showError("주간 루틴이 추가되었어요!");
-      
+
       // 현재 주의 모든 날짜의 미션 다시 로드
       if (weekDays && weekDays.length > 0) {
         for (const day of weekDays) {
@@ -743,10 +748,46 @@ function App() {
       } else {
         showError("루틴 추가에 실패했어요");
       }
+      return false;
+    }
+
+    if (options?.autoClose ?? true) {
+      setShowAddMission(false);
+    }
+    return true;
+  };
+
+  const handleAddMissionSelections = async ({
+    missionId,
+    submissions,
+  }: {
+    missionId: number;
+    submissions: string[];
+  }) => {
+    const trimmedUnique = Array.from(
+      new Set(
+        submissions
+          .map((submission) => submission?.trim())
+          .filter((submission): submission is string => !!submission)
+      )
+    );
+
+    if (!trimmedUnique.length) {
+      showError("소주제를 선택해주세요.");
       return;
     }
 
-    setShowAddMission(false);
+    let successCount = 0;
+    for (const submission of trimmedUnique) {
+      const success = await addMission({ missionId, submission }, { autoClose: false });
+      if (success) {
+        successCount += 1;
+      }
+    }
+
+    if (successCount > 0) {
+      setShowAddMission(false);
+    }
   };
 
   const addWeeklyRoutine = async ({
@@ -1334,7 +1375,7 @@ function App() {
         loading={loadingAvailable}
         availableMissions={allAvailableMissions}
         onSearch={handleMissionSearch}
-        onAdd={addMission}
+        onAdd={handleAddMissionSelections}
         onClose={() => {
           setShowAddMission(false);
         }}

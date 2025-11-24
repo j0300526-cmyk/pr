@@ -54,6 +54,20 @@ export default function HomePage({
   const getMissionKey = (missionEntry: PersonalMissionEntry) =>
     `${missionEntry.missionId}::${missionEntry.submission}`;
 
+  const resolveSubmissionLabel = (missionEntry: PersonalMissionEntry) => {
+    const trimmed = missionEntry.submission?.trim();
+    if (trimmed) return trimmed;
+    const catalog = allAvailableMissions.find((mission) => mission.id === missionEntry.missionId);
+    if (catalog) {
+      const fallbackSubmission =
+        catalog.submissions?.find((sub) => sub && sub.trim().length > 0) || catalog.name;
+      if (fallbackSubmission && fallbackSubmission.trim().length > 0) {
+        return fallbackSubmission.trim();
+      }
+    }
+    return `미션-${missionEntry.missionId}`;
+  };
+
   const handleCheck = async (id: number) => {
     if (!selectedDate) return;
 
@@ -90,13 +104,14 @@ export default function HomePage({
     try {
       // 주간 루틴인 경우 day_missions에 해당 날짜 미션 추가/삭제
       if (missionEntry.is_weekly_routine) {
+        const submissionPayload = resolveSubmissionLabel(missionEntry);
         if (newChecked) {
           // 체크: day_missions에 해당 날짜 미션 추가
           await api(`/days/${selectedDate}/missions`, {
             method: "POST",
             body: JSON.stringify({
               mission_id: missionEntry.missionId,
-              submission: missionEntry.submission,
+              submission: submissionPayload,
             }),
           });
         } else {

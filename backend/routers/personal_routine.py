@@ -56,7 +56,8 @@ async def add_weekly_routine(
             detail="start_date가 week_start_date와 같은 주에 속하지 않습니다"
         )
     
-    # submissions에서 첫 번째를 기본값으로 사용 (submission 필드 제거됨)
+    # 요청 본문의 submission이 있으면 사용, 없으면 카탈로그의 첫 번째 예시 사용
+    requested_submission = (routine_data.submission or "").strip()
     submissions_value = mission.submissions
     if isinstance(submissions_value, str):
         try:
@@ -68,14 +69,16 @@ async def add_weekly_routine(
     else:
         submissions_list = []
     
-    sub_mission = submissions_list[0] if submissions_list else mission.category
+    fallback_submission = submissions_list[0] if submissions_list else mission.category
+    sub_mission = requested_submission or fallback_submission
     
     # 중복 확인: 같은 유저, 같은 주, 같은 미션이 이미 있으면 기존 데이터 반환
     existing = db.query(WeeklyPersonalRoutine).filter(
         and_(
             WeeklyPersonalRoutine.user_id == current_user.id,
             WeeklyPersonalRoutine.week_start_date == week_start_date,
-            WeeklyPersonalRoutine.mission_id == routine_data.mission_id
+            WeeklyPersonalRoutine.mission_id == routine_data.mission_id,
+            WeeklyPersonalRoutine.sub_mission == sub_mission
         )
     ).first()
     

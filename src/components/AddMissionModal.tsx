@@ -7,13 +7,13 @@ interface Props {
   loading: boolean;
   availableMissions: CatalogMission[];
   onSearch: (q: string) => void;
-  onAdd: (selection: { missionId: number; submission: string }) => void;
+  onAdd: (selection: { missionId: number; submissions: string[] }) => void | Promise<void>;
   onClose: () => void;
 }
 
 interface SelectionState {
   categoryId: number | null;
-  selectedExample: string | null;
+  selectedExamples: string[];
 }
 
 export default function AddMissionModal({
@@ -26,13 +26,13 @@ export default function AddMissionModal({
 }: Props) {
   const [selection, setSelection] = useState<SelectionState>({
     categoryId: null,
-    selectedExample: null,
+    selectedExamples: [],
   });
   const [searchText, setSearchText] = useState("");
 
   useEffect(() => {
     if (!visible) {
-      setSelection({ categoryId: null, selectedExample: null });
+      setSelection({ categoryId: null, selectedExamples: [] });
       setSearchText("");
     } else {
       // 디버그: 모달이 열렸을 때 미션 데이터 확인
@@ -61,11 +61,17 @@ export default function AddMissionModal({
 
   const handleCategorySelect = (categoryId: number) => {
     console.log("[AddMissionModal] 대주제 선택:", categoryId);
-    setSelection({ categoryId, selectedExample: null });
+    setSelection({ categoryId, selectedExamples: [] });
   };
 
-  const handleExampleSelect = (example: string) => {
-    setSelection((prev) => ({ ...prev, selectedExample: example }));
+  const handleExampleToggle = (example: string) => {
+    setSelection((prev) => {
+      const alreadySelected = prev.selectedExamples.includes(example);
+      const nextExamples = alreadySelected
+        ? prev.selectedExamples.filter((item) => item !== example)
+        : [...prev.selectedExamples, example];
+      return { ...prev, selectedExamples: nextExamples };
+    });
   };
 
   return (
@@ -73,7 +79,7 @@ export default function AddMissionModal({
       <div className="bg-white rounded-3xl p-6 w-full max-w-sm max-h-[90vh] overflow-y-auto">
         <h3 className="text-xl font-bold mb-2">개인 미션 추가하기</h3>
         <p className="text-xs text-gray-500 mb-4">
-          * 대주제를 선택한 후, 소주제(예시)를 선택해보세요
+          * 대주제를 선택한 뒤 여러 소주제를 함께 선택할 수 있어요.
         </p>
 
         {/* 검색 입력 */}
@@ -123,29 +129,43 @@ export default function AddMissionModal({
               ✨ 소주제 선택 (예시)
             </label>
             <div className="space-y-2 max-h-48 overflow-y-auto">
-              {exampleList.map((example, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => handleExampleSelect(example)}
-                  className={`w-full text-left p-3 rounded-2xl border-2 transition ${
-                    selection.selectedExample === example
-                      ? "border-blue-400 bg-blue-50"
-                      : "border-gray-200 bg-white hover:border-blue-200"
-                  }`}
-                >
-                  <div className="text-gray-800">{example}</div>
-                </button>
-              ))}
+              {exampleList.map((example, idx) => {
+                const isSelected = selection.selectedExamples.includes(example);
+                return (
+                  <button
+                    key={`${example}-${idx}`}
+                    onClick={() => handleExampleToggle(example)}
+                    className={`w-full text-left p-3 rounded-2xl border-2 transition ${
+                      isSelected
+                        ? "border-blue-400 bg-blue-50"
+                        : "border-gray-200 bg-white hover:border-blue-200"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between text-gray-800">
+                      <span>{example}</span>
+                      {isSelected && (
+                        <span className="text-xs text-blue-500 font-semibold">선택됨</span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
 
         {/* 선택 요약 */}
-        {selection.categoryId && selection.selectedExample && (
+        {selection.categoryId && selection.selectedExamples.length > 0 && (
           <div className="bg-green-50 rounded-2xl p-3 mb-4 border-2 border-green-200">
-            <p className="text-xs text-gray-600 font-bold">✓ 선택 완료</p>
+            <p className="text-xs text-gray-600 font-bold">
+              ✓ 선택한 소주제 {selection.selectedExamples.length}개
+            </p>
             <p className="font-bold text-gray-800 mt-1">{selectedCategory?.category}</p>
-            <p className="text-sm text-gray-700 mt-1">→ {selection.selectedExample}</p>
+            <ul className="text-sm text-gray-700 mt-2 space-y-1 list-disc list-inside">
+              {selection.selectedExamples.map((example) => (
+                <li key={example}>{example}</li>
+              ))}
+            </ul>
           </div>
         )}
 
@@ -159,16 +179,20 @@ export default function AddMissionModal({
           </button>
           <button
             onClick={() => {
-              if (selection.categoryId && selection.selectedExample) {
+              if (selection.categoryId && selection.selectedExamples.length > 0) {
                 onAdd({
                   missionId: selection.categoryId,
-                  submission: selection.selectedExample,
+                  submissions: selection.selectedExamples,
                 });
               }
             }}
-            disabled={!selection.categoryId || !selection.selectedExample || loading}
+            disabled={
+              !selection.categoryId || selection.selectedExamples.length === 0 || loading
+            }
             className={`flex-1 py-3 rounded-2xl font-medium text-white ${
-              selection.categoryId && selection.selectedExample && !loading
+              selection.categoryId &&
+              selection.selectedExamples.length > 0 &&
+              !loading
                 ? "bg-green-300 hover:bg-green-400"
                 : "bg-gray-300 cursor-not-allowed"
             }`}

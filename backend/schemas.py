@@ -161,11 +161,13 @@ class MyRankResponse(BaseModel):
 class WeeklyPersonalRoutineCreate(BaseModel):
     mission_id: int
     date: date  # 사용자가 루틴을 추가한 실제 날짜
+    submission: Optional[str] = None
 
 class WeeklyPersonalRoutineResponse(BaseModel):
     id: int
     user_id: int
     mission_id: int
+    sub_mission: str
     week_start_date: date  # 해당 주의 월요일
     start_date: date  # 사용자가 실제로 루틴을 추가한 날짜
     created_at: datetime
