@@ -2,9 +2,7 @@ import React from "react";
 import { Plus, X } from "lucide-react";
 import { CatalogMission, Mission, PersonalMissionEntry, WeekDay } from "../types";
 import { isTodayMonday } from "../utils/date";
-import { dayMissionApi } from "../api/dayMission";
 import { groupMissionApi } from "../api/groupMission";
-import { api } from "../api";
 import { saveDayMissions, loadDayMissions } from "../utils/personalMissionsStorage";
 
 interface Props {

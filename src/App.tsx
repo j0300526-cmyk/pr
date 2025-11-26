@@ -36,7 +36,7 @@ import {
 import { calculateStreak, countTotalMissions } from "./utils/missions";
 import { INITIAL_FRIENDS } from "./constants/users";
 import { STORAGE_KEYS } from "./constants/storage";
-import { api, dayMissionApi } from "./api";
+import { api } from "./api";
 import type { DayCompletionSummary } from "./api/types";
 import RankingPage from "./pages/Ranking"; // 파일명 맞춰서
 import KakaoCallbackPage from "./pages/KakaoCallback";
@@ -47,7 +47,6 @@ import {
   deleteWeeklyRoutine,
   getWeeklyRoutinesForDate,
   getMondayOfWeek,
-  getSundayOfWeek,
 } from "./utils/personalMissionsStorage";
 
 const DAY_CACHE_TTL = 30 * 1000;
@@ -383,20 +382,21 @@ function App() {
         const weeklyRoutines = getWeeklyRoutinesForDate(dateStr);
         
         // 중복 제거: 같은 missionId + submission 조합은 하나만 유지 (주간 루틴 우선)
+        // 주간 루틴을 먼저 추가하고, 일일 미션은 중복되지 않는 것만 추가
         const missionMap = new Map<string, PersonalMissionEntry>();
         
-        // 일일 미션 먼저 추가
+        // 주간 루틴 먼저 추가 (우선순위가 높음)
+        weeklyRoutines.forEach((routine) => {
+          const key = `${routine.missionId}::${routine.submission}`;
+          missionMap.set(key, routine);
+        });
+        
+        // 일일 미션 추가 (주간 루틴과 중복되지 않는 것만)
         dayMissions.forEach((mission) => {
           const key = `${mission.missionId}::${mission.submission}`;
           if (!missionMap.has(key)) {
             missionMap.set(key, mission);
           }
-        });
-        
-        // 주간 루틴 추가 (일일 미션과 중복되면 주간 루틴으로 덮어씀)
-        weeklyRoutines.forEach((routine) => {
-          const key = `${routine.missionId}::${routine.submission}`;
-          missionMap.set(key, routine);
         });
         
         const entries = Array.from(missionMap.values());
@@ -786,7 +786,7 @@ function App() {
 
     const exists = allAvailableMissions.some((m) => m.id === missionId);
     if (!exists) {
-      showError("서버에 등록된 미션만 추가할 수 있어요.");
+      showError("등록된 미션만 추가할 수 있어요.");
       return;
     }
 
@@ -795,28 +795,30 @@ function App() {
       return;
     }
 
-    // 서버에 추가 시도
+    // 로컬 스토리지에 추가
     try {
-      await api(`/personal-routine/add`, {
-        method: "POST",
-        body: JSON.stringify({ mission_id: missionId, submission: trimmedSubmission }),
+      const weekStart = getMondayOfWeek(selectedDate || getTodayKST());
+      saveWeeklyRoutine(weekStart, {
+        missionId,
+        submission: trimmedSubmission,
+        startDate: selectedDate || getTodayKST(),
       });
+
       showError("주간 루틴이 추가되었어요!");
       // 모든 날짜의 미션 다시 로드 (주간 루틴이 모든 날짜에 표시되도록)
       if (selectedDate) {
         await loadDay(selectedDate, { force: true });
       }
-      for (const day of weekDays) {
-        if (day.fullDate !== selectedDate) {
-          await loadDay(day.fullDate, { force: true });
+      if (weekDays && weekDays.length > 0) {
+        for (const day of weekDays) {
+          if (day.fullDate !== selectedDate) {
+            await loadDay(day.fullDate, { force: true });
+          }
         }
       }
-    } catch (error: any) {
-      if (error?.status === 400) {
-        showError(error.message || "주간 루틴을 추가할 수 없습니다.");
-      } else {
-        showError("주간 루틴 추가에 실패했어요");
-      }
+    } catch (error) {
+      console.error("Failed to add weekly routine:", error);
+      showError("주간 루틴 추가에 실패했어요");
       return;
     }
 

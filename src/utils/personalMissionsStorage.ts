@@ -20,7 +20,13 @@ export function loadDayMissions(dateStr: string): PersonalMissionEntry[] {
     const key = `${STORAGE_PREFIX}${dateStr}`;
     const data = localStorage.getItem(key);
     if (!data) return [];
-    return JSON.parse(data);
+    const parsed = JSON.parse(data);
+    // 타입 안정성을 위한 검증
+    if (!Array.isArray(parsed)) {
+      console.warn(`Invalid day missions data for ${dateStr}, expected array`);
+      return [];
+    }
+    return parsed;
   } catch (error) {
     console.error("Failed to load day missions:", error);
     return [];
@@ -59,7 +65,13 @@ export function loadWeeklyRoutines(weekStart: string): Array<{
     const key = `${WEEKLY_ROUTINE_PREFIX}${weekStart}`;
     const data = localStorage.getItem(key);
     if (!data) return [];
-    return JSON.parse(data);
+    const parsed = JSON.parse(data);
+    // 타입 안정성을 위한 검증
+    if (!Array.isArray(parsed)) {
+      console.warn(`Invalid weekly routines data for ${weekStart}, expected array`);
+      return [];
+    }
+    return parsed;
   } catch (error) {
     console.error("Failed to load weekly routines:", error);
     return [];
@@ -84,24 +96,27 @@ export function deleteWeeklyRoutine(weekStart: string, missionId: number, submis
 export function getWeeklyRoutinesForDate(dateStr: string): PersonalMissionEntry[] {
   try {
     // 날짜가 속한 주의 월요일 계산
-    const date = new Date(dateStr + "T00:00:00");
-    const dayOfWeek = date.getDay();
-    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // 일요일이면 -6, 아니면 1-dayOfWeek
-    const monday = new Date(date);
-    monday.setDate(date.getDate() + mondayOffset);
-    const weekStart = monday.toISOString().slice(0, 10);
-
+    const weekStart = getMondayOfWeek(dateStr);
     const routines = loadWeeklyRoutines(weekStart);
+    
     return routines
       .filter((r) => r.startDate <= dateStr) // 시작일 이후인 루틴만
-      .map((r, index) => ({
-        missionId: r.missionId,
-        submission: r.submission,
-        is_weekly_routine: true,
-        routine_id: index + 1, // 숫자 ID (실제로는 사용되지 않지만 타입 호환을 위해)
-        completed: false,
-        dayMissionId: undefined,
-      }));
+      .map((r, index) => {
+        // 고유한 routine_id 생성 (weekStart + missionId + submission의 해시)
+        const uniqueId = `${weekStart}-${r.missionId}-${r.submission}`.split('').reduce((acc, char) => {
+          const hash = ((acc << 5) - acc) + char.charCodeAt(0);
+          return hash & hash;
+        }, 0);
+        
+        return {
+          missionId: r.missionId,
+          submission: r.submission,
+          is_weekly_routine: true,
+          routine_id: Math.abs(uniqueId) || (index + 1), // 고유한 숫자 ID
+          completed: false,
+          dayMissionId: undefined,
+        };
+      });
   } catch (error) {
     console.error("Failed to get weekly routines for date:", error);
     return [];
