@@ -33,16 +33,18 @@ class CatalogMission(Base):
     submissions = Column(Text, nullable=False)  # JSON 배열 문자열: ["텀블러 사용하기", "장바구니 챙기기", ...]
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
-    # 관계
-    day_missions = relationship("DayMission", back_populates="mission")
-    weekly_routines = relationship("WeeklyPersonalRoutine", back_populates="mission")
+    # 관계 제거 (CatalogMission 테이블이 없으므로)
+    # day_missions = relationship("DayMission", back_populates="mission")
+    # weekly_routines = relationship("WeeklyPersonalRoutine", back_populates="mission")
 
 class DayMission(Base):
     __tablename__ = "day_missions"
     
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    mission_id = Column(Integer, ForeignKey("catalog_missions.id"), nullable=False)
+    # 실제 DB는 catalog_subtopics를 참조하지만, 스키마 변경 불가로 외래키 제약조건 제거
+    # 프론트엔드에서 보낸 mission_id를 그대로 저장 (검증은 백엔드에서 수행)
+    mission_id = Column(Integer, nullable=False)  # ForeignKey 제거
     date = Column(Date, nullable=False, index=True)
     sub_mission = Column(String, nullable=False, default="")
     completed = Column(Boolean, default=False)
@@ -50,7 +52,8 @@ class DayMission(Base):
     
     # 관계
     user = relationship("User", back_populates="day_missions")
-    mission = relationship("CatalogMission", back_populates="day_missions")
+    # CatalogMission 테이블이 없으므로 관계 제거
+    # mission = relationship("CatalogMission", back_populates="day_missions")
     
     # 복합 유니크 제약: 같은 날 같은 소주제는 한 번만
     __table_args__ = (
@@ -139,7 +142,9 @@ class WeeklyPersonalRoutine(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    mission_id = Column(Integer, ForeignKey("catalog_missions.id"), nullable=False)
+    # 실제 DB는 catalog_subtopics를 참조하지만, 스키마 변경 불가로 외래키 제약조건 제거
+    # 프론트엔드에서 보낸 mission_id를 그대로 저장 (검증은 백엔드에서 수행)
+    mission_id = Column(Integer, nullable=False)  # ForeignKey 제거
     sub_mission = Column(String, nullable=False, default="")
     week_start_date = Column(Date, nullable=False, index=True)  # 해당 주의 월요일 날짜 (조회/그룹화 기준)
     start_date = Column(Date, nullable=False, index=True)  # 사용자가 실제로 루틴을 추가한 날짜 (표시 시작 기준)
@@ -147,7 +152,8 @@ class WeeklyPersonalRoutine(Base):
     
     # 관계
     user = relationship("User", back_populates="weekly_routines")
-    mission = relationship("CatalogMission", back_populates="weekly_routines")
+    # CatalogMission 테이블이 없으므로 관계 제거
+    # mission = relationship("CatalogMission", back_populates="weekly_routines")
     
     # 복합 유니크: 같은 주에 같은 미션은 한 번만 (sub_mission 제외)
     __table_args__ = (
