@@ -1,6 +1,6 @@
 // 프론트엔드에서 사용하는 미션 카탈로그 데이터
 // 서버 호출 없이 직접 사용
-import { CatalogMission } from "../types";
+import { CatalogMission, Mission } from "../types";
 
 export const FRONTEND_MISSIONS: CatalogMission[] = [
   {
@@ -115,3 +115,9 @@ export const FRONTEND_MISSIONS: CatalogMission[] = [
     ],
   },
 ];
+
+// 그룹 미션 기본 데이터 (폴백용)
+export const DEFAULT_GROUP_MISSIONS: Mission[] = [];
+
+// 추천 그룹 미션 데이터 (폴백용)
+export const RECOMMENDED_MISSIONS: Mission[] = [];
