@@ -3,12 +3,11 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from database import get_db
-from models import WeeklyPersonalRoutine, CatalogMission, User
+from models import WeeklyPersonalRoutine, User
 from schemas import WeeklyPersonalRoutineResponse, WeeklyPersonalRoutineCreate
 from auth import get_current_user
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
-import json
 
 # KST(Asia/Seoul) 타임존 설정
 KST = ZoneInfo("Asia/Seoul")
@@ -34,16 +33,7 @@ async def add_weekly_routine(
     db: Session = Depends(get_db)
 ):
     """주간 개인 루틴 추가 (선택한 날짜부터 그 주 일요일까지)"""
-    # 미션 카탈로그 확인
-    mission = db.query(CatalogMission).filter(
-        CatalogMission.id == routine_data.mission_id
-    ).first()
-    if not mission:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="존재하지 않는 미션입니다"
-        )
-    
+    # 프론트엔드에서 소주제 ID와 label을 직접 보내므로 CatalogMission 조회 불필요
     # 요청으로 들어온 date가 속한 주의 월요일 계산
     week_start_date = get_monday_of_week(routine_data.date)
     start_date = routine_data.date
@@ -56,21 +46,13 @@ async def add_weekly_routine(
             detail="start_date가 week_start_date와 같은 주에 속하지 않습니다"
         )
     
-    # 요청 본문의 submission이 있으면 사용, 없으면 카탈로그의 첫 번째 예시 사용
-    requested_submission = (routine_data.submission or "").strip()
-    submissions_value = mission.submissions
-    if isinstance(submissions_value, str):
-        try:
-            submissions_list = json.loads(submissions_value)
-        except Exception:
-            submissions_list = [submissions_value]
-    elif isinstance(submissions_value, list):
-        submissions_list = submissions_value
-    else:
-        submissions_list = []
-    
-    fallback_submission = submissions_list[0] if submissions_list else mission.category
-    sub_mission = requested_submission or fallback_submission
+    # 프론트엔드에서 보낸 submission 사용 (필수)
+    sub_mission = (routine_data.submission or "").strip()
+    if not sub_mission:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="소주제를 선택해주세요"
+        )
     
     # 중복 확인: 같은 유저, 같은 주, 같은 미션이 이미 있으면 기존 데이터 반환
     existing = db.query(WeeklyPersonalRoutine).filter(

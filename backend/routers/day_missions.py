@@ -4,12 +4,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from sqlalchemy.exc import SQLAlchemyError
 from database import get_db
-from models import DayMission, CatalogMission, User, WeeklyPersonalRoutine
+from models import DayMission, User, WeeklyPersonalRoutine
 from schemas import (
     DayMissionResponse,
     DayMissionCreate,
     DayMissionUpdate,
-    CatalogMissionResponse,
     DayMissionBatchCreateResponse,
     DayCompletionSummary,
 )
@@ -180,21 +179,8 @@ async def get_day_missions(
         )
     ).all()
     
-    # 관계 로드 (mission 정보 포함)
-    for mission in day_missions:
-        _ = mission.mission  # 관계 로드
-        # CatalogMission.submissions는 DB에 JSON 문자열로 저장될 수 있으므로 리스트로 변환
-        if isinstance(mission.mission.submissions, str):
-            try:
-                mission.mission.submissions = json.loads(mission.mission.submissions)
-            except Exception:
-                mission.mission.submissions = [mission.mission.submissions]
-        # 프론트 호환용 name 필드 (첫 번째 예시 또는 카테고리명)
-        mission.mission.name = mission.sub_mission or (
-            mission.mission.submissions[0]
-            if isinstance(mission.mission.submissions, list) and mission.mission.submissions
-            else mission.mission.category
-        )
+    # CatalogMission 테이블이 없으므로 관계 로드 제거
+    # 프론트엔드에서 하드코딩된 데이터를 사용하므로 mission_id와 sub_mission만 사용
     
     # 주간 루틴 조회 (해당 날짜가 속한 주의 월요일 루틴)
     week_start = get_monday_of_week(target_date)
@@ -214,25 +200,14 @@ async def get_day_missions(
         # 선택한 날짜가 start_date부터 그 주 일요일 사이에 있어야 표시
         if not (routine.start_date <= target_date <= sunday):
             continue  # 이 날짜에는 이 루틴을 표시하지 않음
-        _ = routine.mission  # 관계 로드
-        if isinstance(routine.mission.submissions, str):
-            try:
-                routine.mission.submissions = json.loads(routine.mission.submissions)
-            except Exception:
-                routine.mission.submissions = [routine.mission.submissions]
-        routine.mission.name = routine.sub_mission or (
-            routine.mission.submissions[0]
-            if isinstance(routine.mission.submissions, list) and routine.mission.submissions
-            else routine.mission.category
-        )
         
-        # 주간 루틴을 DayMission 형식으로 변환
-        # 실제로는 day_missions 테이블에 저장되지 않고 가상의 DayMission으로 변환
+        # CatalogMission 테이블이 없으므로 mission_id와 sub_mission만 사용
+        # 프론트엔드에서 하드코딩된 데이터를 사용하므로 최소한의 정보만 반환
         mission_dict = {
-            "id": routine.mission.id,
-            "category": routine.mission.category,
-            "submissions": routine.mission.submissions if isinstance(routine.mission.submissions, list) else json.loads(routine.mission.submissions) if isinstance(routine.mission.submissions, str) else [],
-            "name": routine.mission.name if hasattr(routine.mission, 'name') and routine.mission.name else (routine.mission.submissions[0] if isinstance(routine.mission.submissions, list) and routine.mission.submissions else routine.mission.category)
+            "id": routine.mission_id,
+            "category": "",  # 프론트엔드에서 하드코딩된 데이터 사용
+            "submissions": [],  # 프론트엔드에서 하드코딩된 데이터 사용
+            "name": routine.sub_mission or ""
         }
         routine_missions.append({
             "id": routine.id,
@@ -246,13 +221,14 @@ async def get_day_missions(
         })
     
     # 일일 미션에 주간 루틴 정보 추가 (is_weekly_routine=False)
+    # CatalogMission 테이블이 없으므로 mission_id와 sub_mission만 사용
     result = []
     for mission in day_missions:
         mission_dict = {
-            "id": mission.mission.id,
-            "category": mission.mission.category,
-            "submissions": mission.mission.submissions if isinstance(mission.mission.submissions, list) else json.loads(mission.mission.submissions) if isinstance(mission.mission.submissions, str) else [],
-            "name": mission.mission.name if hasattr(mission.mission, 'name') and mission.mission.name else (mission.mission.submissions[0] if isinstance(mission.mission.submissions, list) and mission.mission.submissions else mission.mission.category)
+            "id": mission.mission_id,
+            "category": "",  # 프론트엔드에서 하드코딩된 데이터 사용
+            "submissions": [],  # 프론트엔드에서 하드코딩된 데이터 사용
+            "name": mission.sub_mission or ""
         }
         result.append({
             "id": mission.id,
@@ -289,39 +265,12 @@ async def add_mission(
             detail="날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)"
         )
     
-    # 미션 카탈로그 확인
-    mission = db.query(CatalogMission).filter(
-        CatalogMission.id == mission_data.mission_id
-    ).first()
-    if not mission:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="존재하지 않는 미션입니다"
-        )
-
+    # 프론트엔드에서 소주제 ID와 label을 직접 보내므로 CatalogMission 조회 불필요
     submission = (mission_data.submission or "").strip()
     if not submission:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="소주제를 선택해주세요"
-        )
-    
-    # submissions 검증
-    submissions_value = mission.submissions
-    if isinstance(submissions_value, str):
-        try:
-            submissions_list = json.loads(submissions_value)
-        except Exception:
-            submissions_list = [submissions_value]
-    elif isinstance(submissions_value, list):
-        submissions_list = submissions_value
-    else:
-        submissions_list = []
-
-    if submissions_list and submission not in submissions_list:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="선택한 소주제가 유효하지 않습니다"
         )
 
     # 주간 자동 생성 모드
@@ -425,19 +374,8 @@ async def add_mission(
     db.commit()
     db.refresh(day_mission)
     
-    # 관계 로드
-    _ = day_mission.mission
-    if isinstance(day_mission.mission.submissions, str):
-        try:
-            day_mission.mission.submissions = json.loads(day_mission.mission.submissions)
-        except Exception:
-            day_mission.mission.submissions = [day_mission.mission.submissions]
-    day_mission.mission.name = day_mission.sub_mission or (
-        day_mission.mission.submissions[0]
-        if isinstance(day_mission.mission.submissions, list) and day_mission.mission.submissions
-        else day_mission.mission.category
-    )
-    
+    # CatalogMission 테이블이 없으므로 관계 로드 제거
+    # 프론트엔드에서 하드코딩된 데이터를 사용하므로 mission_id와 sub_mission만 반환
     return day_mission
 
 @router.delete("/{date_str}/missions/{mission_id}")
@@ -509,19 +447,8 @@ async def toggle_complete(
     db.commit()
     db.refresh(day_mission)
     
-    # 관계 로드
-    _ = day_mission.mission
-    if isinstance(day_mission.mission.submissions, str):
-        try:
-            day_mission.mission.submissions = json.loads(day_mission.mission.submissions)
-        except Exception:
-            day_mission.mission.submissions = [day_mission.mission.submissions]
-    day_mission.mission.name = day_mission.sub_mission or (
-        day_mission.mission.submissions[0]
-        if isinstance(day_mission.mission.submissions, list) and day_mission.mission.submissions
-        else day_mission.mission.category
-    )
-    
+    # CatalogMission 테이블이 없으므로 관계 로드 제거
+    # 프론트엔드에서 하드코딩된 데이터를 사용하므로 mission_id와 sub_mission만 반환
     return day_mission
 
 def _prioritize_week_summary_route():
