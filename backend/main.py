@@ -10,7 +10,22 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # 데이터베이스 테이블 생성 및 스키마 보정
-Base.metadata.create_all(bind=engine)
+# 인덱스 중복 에러 방지를 위해 try-except 처리
+import logging
+logger = logging.getLogger(__name__)
+
+try:
+    Base.metadata.create_all(bind=engine, checkfirst=True)
+except Exception as e:
+    # 인덱스나 테이블이 이미 존재하는 경우 무시 (특히 catalog_missions 관련)
+    error_str = str(e)
+    if "already exists" in error_str or "DuplicateTable" in error_str or "DuplicateIndex" in error_str:
+        logger.warning(f"일부 데이터베이스 객체가 이미 존재합니다 (무시): {error_str}")
+    else:
+        # 다른 에러는 다시 발생시킴
+        logger.error(f"테이블 생성 중 예상치 못한 에러: {e}")
+        raise
+
 ensure_day_mission_schema()
 
 app = FastAPI(
