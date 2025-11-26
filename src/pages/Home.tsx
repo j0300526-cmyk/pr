@@ -5,6 +5,7 @@ import { isTodayMonday } from "../utils/date";
 import { dayMissionApi } from "../api/dayMission";
 import { groupMissionApi } from "../api/groupMission";
 import { api } from "../api";
+import { saveDayMissions, loadDayMissions } from "../utils/personalMissionsStorage";
 
 interface Props {
   userName: string;
@@ -108,55 +109,26 @@ export default function HomePage({
     setPersonalMissionChecked((prev) => ({ ...prev, [key]: newChecked }));
 
     try {
-      // 주간 루틴인 경우 day_missions에 해당 날짜 미션 추가/삭제
-      if (missionEntry.is_weekly_routine) {
-        const submissionPayload = resolveSubmissionLabel(missionEntry);
-        if (newChecked) {
-          // 체크: day_missions에 해당 날짜 미션 추가
-          await api(`/days/${selectedDate}/missions`, {
-            method: "POST",
-            body: JSON.stringify({
-              mission_id: missionEntry.missionId,
-              submission: submissionPayload,
-            }),
-          });
-        } else {
-          // 체크 해제: day_missions에서 해당 날짜 미션 삭제
-          // dayMissionId가 있으면 삭제, 없으면 missionId + submission으로 찾아서 삭제
-          if (missionEntry.dayMissionId) {
-            await api(`/days/${selectedDate}/missions/${missionEntry.dayMissionId}`, {
-              method: "DELETE",
-            });
-          } else {
-            // dayMissionId가 없으면 서버에서 찾아서 삭제
-            const dayMissions = await dayMissionApi.getDayMissions(selectedDate);
-            const targetMission = dayMissions.find(
-              (dm) =>
-                dm.mission.id === missionEntry.missionId &&
-                dm.sub_mission === missionEntry.submission
-            );
-            if (targetMission) {
-              await dayMissionApi.deleteMission(selectedDate, targetMission.id);
-            }
-          }
+      // 주간 루틴인 경우: 로컬 스토리지에 완료 상태 저장하지 않음 (주간 루틴은 체크만 표시)
+      // 일일 미션인 경우: 로컬 스토리지에 완료 상태 저장
+      if (!missionEntry.is_weekly_routine) {
+        const dayMissions = loadDayMissions(selectedDate);
+        const missionIndex = dayMissions.findIndex(
+          (m) => m.missionId === missionEntry.missionId && m.submission === missionEntry.submission
+        );
+        
+        if (missionIndex >= 0) {
+          dayMissions[missionIndex] = {
+            ...dayMissions[missionIndex],
+            completed: newChecked,
+          };
+          saveDayMissions(selectedDate, dayMissions);
         }
-        // 주간 루틴 체크 후 미션 목록 다시 불러오기
-        if (loadDay && selectedDate) {
-          await loadDay(selectedDate, { force: true });
-        }
-      } else {
-        // 일일 미션인 경우 toggleComplete API 사용
-        if (missionEntry.dayMissionId) {
-          await dayMissionApi.toggleComplete(
-            selectedDate,
-            missionEntry.dayMissionId,
-            newChecked
-          );
-          // 일일 미션 체크 후 미션 목록 다시 불러오기 (completed 상태 업데이트)
-          if (loadDay && selectedDate) {
-            await loadDay(selectedDate, { force: true });
-          }
-        }
+      }
+      
+      // 미션 목록 다시 불러오기
+      if (loadDay && selectedDate) {
+        await loadDay(selectedDate, { force: true });
       }
     } catch (error) {
       // 실패 시 로컬 상태 롤백

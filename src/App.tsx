@@ -40,6 +40,15 @@ import { api, dayMissionApi } from "./api";
 import type { DayCompletionSummary } from "./api/types";
 import RankingPage from "./pages/Ranking"; // 파일명 맞춰서
 import KakaoCallbackPage from "./pages/KakaoCallback";
+import {
+  saveDayMissions,
+  loadDayMissions,
+  saveWeeklyRoutine,
+  deleteWeeklyRoutine,
+  getWeeklyRoutinesForDate,
+  getMondayOfWeek,
+  getSundayOfWeek,
+} from "./utils/personalMissionsStorage";
 
 const DAY_CACHE_TTL = 30 * 1000;
 const GROUP_CACHE_TTL = 30 * 1000;
@@ -253,7 +262,21 @@ function App() {
       weekSummaryLoadingRef.current.add(weekKey);
 
       try {
-        const summary = await dayMissionApi.getWeekSummary(dateStr);
+        // 로컬 스토리지에서 주간 완료 상태 계산
+        const weekDates = getWeekDates(dateStr);
+        const summary: DayCompletionSummary[] = weekDates.map((dateStr) => {
+          const missions = loadDayMissions(dateStr);
+          const completedCount = missions.filter((m) => m.completed).length;
+          const totalCount = missions.length;
+          return {
+            date: dateStr,
+            total_missions: totalCount,
+            completed_missions: completedCount,
+            completion_rate: totalCount > 0 ? completedCount / totalCount : 0,
+            is_day_perfectly_complete: totalCount > 0 && completedCount === totalCount,
+          };
+        });
+        
         weekSummaryCacheRef.current.set(weekKey, {
           data: summary,
           timestamp: Date.now(),
@@ -354,59 +377,40 @@ function App() {
       }
 
       try {
-        const data: any = await api(`/days/${dateStr}`);
-        const entries = Array.isArray(data)
-          ? data.map((x: any) => {
-              const fallbackName =
-                x?.mission?.name ||
-                (Array.isArray(x?.mission?.submissions) && x.mission.submissions.length
-                  ? (typeof x.mission.submissions[0] === 'object' && x.mission.submissions[0]?.label
-                      ? x.mission.submissions[0].label
-                      : typeof x.mission.submissions[0] === 'string'
-                      ? x.mission.submissions[0]
-                      : null)
-                  : null) ||
-                x?.mission?.category || `미션-${x?.mission?.id ?? ""}`;
-              return {
-                missionId: Number(x?.mission?.id),
-                submission: x?.sub_mission || fallbackName,
-                is_weekly_routine: x?.is_weekly_routine || false,
-                routine_id: x?.routine_id || undefined,
-                completed: x?.completed || false,
-                dayMissionId: x?.id ? Number(x.id) : undefined,
-              };
-            })
-          : [];
+        // 로컬 스토리지에서 개인 미션 로드
+        const dayMissions = loadDayMissions(dateStr);
+        // 주간 루틴도 해당 날짜에 적용
+        const weeklyRoutines = getWeeklyRoutinesForDate(dateStr);
+        
+        // 중복 제거: 같은 missionId + submission 조합은 하나만 유지 (주간 루틴 우선)
+        const missionMap = new Map<string, PersonalMissionEntry>();
+        
+        // 일일 미션 먼저 추가
+        dayMissions.forEach((mission) => {
+          const key = `${mission.missionId}::${mission.submission}`;
+          if (!missionMap.has(key)) {
+            missionMap.set(key, mission);
+          }
+        });
+        
+        // 주간 루틴 추가 (일일 미션과 중복되면 주간 루틴으로 덮어씀)
+        weeklyRoutines.forEach((routine) => {
+          const key = `${routine.missionId}::${routine.submission}`;
+          missionMap.set(key, routine);
+        });
+        
+        const entries = Array.from(missionMap.values());
+        
         setMissions((prev) => ({ ...prev, [dateStr]: entries }));
         dayCacheRef.current.set(dateStr, {
           data: entries,
           timestamp: Date.now(),
         });
 
-        const map = new Map<string, number>();
-        if (Array.isArray(data)) {
-          data.forEach((x: any) => {
-            const fallbackName =
-              x?.mission?.name ||
-              (Array.isArray(x?.mission?.submissions) && x.mission.submissions.length
-                ? (typeof x.mission.submissions[0] === 'object' && x.mission.submissions[0]?.label
-                    ? x.mission.submissions[0].label
-                    : typeof x.mission.submissions[0] === 'string'
-                    ? x.mission.submissions[0]
-                    : null)
-                : null) ||
-              x?.mission?.category || `미션-${x?.mission?.id ?? ""}`;
-            const submission = x?.sub_mission || fallbackName;
-            if (x?.id) {
-              map.set(
-                makeMissionKey(Number(x?.mission?.id), submission),
-                Number(x.id)
-              );
-            }
-          });
-        }
-        pkMapRef.current = map;
-      } catch {
+        // pkMap은 더 이상 사용하지 않음 (로컬 스토리지 사용)
+        pkMapRef.current = new Map();
+      } catch (error) {
+        console.error("Failed to load day missions:", error);
         if (forceReload) {
           dayCacheRef.current.delete(dateStr);
         }
@@ -415,7 +419,7 @@ function App() {
         loadingDatesRef.current.delete(dateStr);
       }
     },
-    [makeMissionKey, showError]
+    [showError]
   );
 
   const fetchAvailableMissions = async () => {
@@ -620,13 +624,11 @@ function App() {
     const target = current[index];
     if (!target) return;
 
-    // 서버에서 삭제 시도
     try {
-      // 주간 루틴인 경우 personal-routines 엔드포인트 사용
+      // 주간 루틴인 경우
       if (target.is_weekly_routine && target.routine_id) {
-        await api(`/personal-routines/${target.routine_id}`, {
-          method: "DELETE",
-        });
+        const weekStart = getMondayOfWeek(selectedDate);
+        deleteWeeklyRoutine(weekStart, target.missionId, target.submission);
         // 주간 루틴 삭제 후 전체 주간 미션 다시 로드
         if (weekDays && weekDays.length > 0) {
           for (const day of weekDays) {
@@ -634,26 +636,18 @@ function App() {
           }
         }
       } else {
-        // 일일 미션인 경우 기존 로직 사용
-        const key = makeMissionKey(target.missionId, target.submission);
-        const pk = pkMapRef.current.get(key);
-        if (pk) {
-          await api(`/days/${selectedDate}/missions/${pk}`, {
-            method: "DELETE",
-          });
-          pkMapRef.current.delete(key);
-        }
-        // 로컬 상태 업데이트
+        // 일일 미션인 경우 로컬 스토리지에서 삭제
         const updated = current.filter((_, i) => i !== index);
+        saveDayMissions(selectedDate, updated);
         const next = { ...missions, [selectedDate]: updated };
         setMissions(next);
-        saveUserData(next);
         dayCacheRef.current.set(selectedDate, {
           data: updated,
           timestamp: Date.now(),
         });
       }
-    } catch {
+    } catch (error) {
+      console.error("Failed to delete mission:", error);
       showError("미션 삭제에 실패했어요");
       return;
     }
@@ -682,7 +676,7 @@ function App() {
 
     const exists = allAvailableMissions.some((m) => m.id === missionId);
     if (!exists) {
-      showError("서버에 등록된 미션만 추가할 수 있어요.");
+      showError("등록된 미션만 추가할 수 있어요.");
       return false;
     }
 
@@ -692,19 +686,17 @@ function App() {
       return false;
     }
 
-    // 주간 루틴 API 사용 (selectedDate부터 그 주 일요일까지 자동 생성)
     try {
-      const response: any = await api(`/personal-routines`, {
-        method: "POST",
-        body: JSON.stringify({
-          mission_id: missionId,
-          date: selectedDate, // 선택한 날짜 기준으로 루틴 생성
-          submission: trimmedSubmission,
-        }),
+      // 주간 루틴으로 추가 (selectedDate부터 그 주 일요일까지 자동 생성)
+      const weekStart = getMondayOfWeek(selectedDate);
+      saveWeeklyRoutine(weekStart, {
+        missionId,
+        submission: trimmedSubmission,
+        startDate: selectedDate,
       });
 
       if (import.meta.env.DEV) {
-        console.log("[DEBUG addMission] 주간 루틴 추가 성공:", response);
+        console.log("[DEBUG addMission] 주간 루틴 추가 성공");
       }
 
       showError("주간 루틴이 추가되었어요!");
@@ -715,14 +707,9 @@ function App() {
           await loadDay(day.fullDate, { force: true });
         }
       }
-    } catch (error: any) {
-      if (error?.status === 400) {
-        showError(error.message || "주간 루틴을 추가할 수 없습니다.");
-      } else if (error?.status === 409) {
-        showError("이미 추가된 루틴이에요.");
-      } else {
-        showError("루틴 추가에 실패했어요");
-      }
+    } catch (error) {
+      console.error("Failed to add mission:", error);
+      showError("루틴 추가에 실패했어요");
       return false;
     }
 
