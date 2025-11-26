@@ -360,8 +360,13 @@ function App() {
               const fallbackName =
                 x?.mission?.name ||
                 (Array.isArray(x?.mission?.submissions) && x.mission.submissions.length
-                  ? x.mission.submissions[0]
-                  : x?.mission?.category || `미션-${x?.mission?.id ?? ""}`);
+                  ? (typeof x.mission.submissions[0] === 'object' && x.mission.submissions[0]?.label
+                      ? x.mission.submissions[0].label
+                      : typeof x.mission.submissions[0] === 'string'
+                      ? x.mission.submissions[0]
+                      : null)
+                  : null) ||
+                x?.mission?.category || `미션-${x?.mission?.id ?? ""}`;
               return {
                 missionId: Number(x?.mission?.id),
                 submission: x?.sub_mission || fallbackName,
@@ -384,8 +389,13 @@ function App() {
             const fallbackName =
               x?.mission?.name ||
               (Array.isArray(x?.mission?.submissions) && x.mission.submissions.length
-                ? x.mission.submissions[0]
-                : x?.mission?.category || `미션-${x?.mission?.id ?? ""}`);
+                ? (typeof x.mission.submissions[0] === 'object' && x.mission.submissions[0]?.label
+                    ? x.mission.submissions[0].label
+                    : typeof x.mission.submissions[0] === 'string'
+                    ? x.mission.submissions[0]
+                    : null)
+                : null) ||
+              x?.mission?.category || `미션-${x?.mission?.id ?? ""}`;
             const submission = x?.sub_mission || fallbackName;
             if (x?.id) {
               map.set(
@@ -723,28 +733,40 @@ function App() {
   };
 
   const handleAddMissionSelections = async ({
-    missionId,
-    submissions,
+    missionIds,
   }: {
-    missionId: number;
-    submissions: string[];
+    missionIds: number[];
   }) => {
-    const trimmedUnique = Array.from(
-      new Set(
-        submissions
-          .map((submission) => submission?.trim())
-          .filter((submission): submission is string => !!submission)
-      )
-    );
-
-    if (!trimmedUnique.length) {
+    if (!missionIds || missionIds.length === 0) {
       showError("소주제를 선택해주세요.");
       return;
     }
 
+    // ID로 소주제 정보 찾기
+    const { FRONTEND_MISSIONS } = await import("./constants/missions");
+    const subMissionMap = new Map<number, { missionId: number; label: string }>();
+    
+    for (const mission of FRONTEND_MISSIONS) {
+      for (const subMission of mission.submissions) {
+        subMissionMap.set(subMission.id, {
+          missionId: mission.id,
+          label: subMission.label,
+        });
+      }
+    }
+
     let successCount = 0;
-    for (const submission of trimmedUnique) {
-      const success = await addMission({ missionId, submission }, { autoClose: false });
+    for (const subMissionId of missionIds) {
+      const subMissionInfo = subMissionMap.get(subMissionId);
+      if (!subMissionInfo) {
+        console.warn(`소주제 ID ${subMissionId}를 찾을 수 없습니다.`);
+        continue;
+      }
+      
+      const success = await addMission(
+        { missionId: subMissionInfo.missionId, submission: subMissionInfo.label },
+        { autoClose: false }
+      );
       if (success) {
         successCount += 1;
       }

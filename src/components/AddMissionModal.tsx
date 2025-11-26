@@ -1,18 +1,18 @@
 // 개인 미션을 선택하여 추가할 수 있는 모달 컴포넌트
 import React, { useEffect, useState } from "react";
-import { CatalogMission } from "../types";
+import { CatalogMission, CatalogSubMission } from "../types";
 
 interface Props {
   visible: boolean;
   loading: boolean;
   availableMissions: CatalogMission[];
-  onAdd: (selection: { missionId: number; submissions: string[] }) => void | Promise<void>;
+  onAdd: (selection: { missionIds: number[] }) => void | Promise<void>;
   onClose: () => void;
 }
 
 interface SelectionState {
   categoryId: number | null;
-  selectedExamples: string[];
+  selectedSubMissions: CatalogSubMission[];
 }
 
 export default function AddMissionModal({
@@ -24,12 +24,12 @@ export default function AddMissionModal({
 }: Props) {
   const [selection, setSelection] = useState<SelectionState>({
     categoryId: null,
-    selectedExamples: [],
+    selectedSubMissions: [],
   });
 
   useEffect(() => {
     if (!visible) {
-      setSelection({ categoryId: null, selectedExamples: [] });
+      setSelection({ categoryId: null, selectedSubMissions: [] });
     } else {
       // 디버그: 모달이 열렸을 때 미션 데이터 확인
       console.log("[AddMissionModal] 모달 열림");
@@ -41,22 +41,22 @@ export default function AddMissionModal({
   if (!visible) return null;
 
   const selectedCategory = availableMissions.find((m) => m.id === selection.categoryId);
-  const exampleList = selectedCategory?.submissions || [];
+  const subMissionList = selectedCategory?.submissions || [];
 
   const filteredCategories = availableMissions;
 
   const handleCategorySelect = (categoryId: number) => {
     console.log("[AddMissionModal] 대주제 선택:", categoryId);
-    setSelection({ categoryId, selectedExamples: [] });
+    setSelection({ categoryId, selectedSubMissions: [] });
   };
 
-  const handleExampleToggle = (example: string) => {
+  const handleExampleToggle = (subMission: CatalogSubMission) => {
     setSelection((prev) => {
-      const alreadySelected = prev.selectedExamples.includes(example);
-      const nextExamples = alreadySelected
-        ? prev.selectedExamples.filter((item) => item !== example)
-        : [...prev.selectedExamples, example];
-      return { ...prev, selectedExamples: nextExamples };
+      const alreadySelected = prev.selectedSubMissions.some((s) => s.id === subMission.id);
+      const nextSubMissions = alreadySelected
+        ? prev.selectedSubMissions.filter((s) => s.id !== subMission.id)
+        : [...prev.selectedSubMissions, subMission];
+      return { ...prev, selectedSubMissions: nextSubMissions };
     });
   };
 
@@ -94,18 +94,18 @@ export default function AddMissionModal({
         </div>
 
         {/* 소주제 선택 (2단계) */}
-        {selectedCategory && exampleList.length > 0 && (
+        {selectedCategory && subMissionList.length > 0 && (
           <div className="mb-4">
             <label className="block text-sm font-bold text-gray-700 mb-2">
               ✨ 소주제 선택 (예시)
             </label>
             <div className="space-y-2 max-h-48 overflow-y-auto">
-              {exampleList.map((example, idx) => {
-                const isSelected = selection.selectedExamples.includes(example);
+              {subMissionList.map((subMission) => {
+                const isSelected = selection.selectedSubMissions.some((s) => s.id === subMission.id);
                 return (
                   <button
-                    key={`${example}-${idx}`}
-                    onClick={() => handleExampleToggle(example)}
+                    key={subMission.id}
+                    onClick={() => handleExampleToggle(subMission)}
                     className={`w-full text-left p-3 rounded-2xl border-2 transition ${
                       isSelected
                         ? "border-blue-400 bg-blue-50"
@@ -113,7 +113,7 @@ export default function AddMissionModal({
                     }`}
                   >
                     <div className="flex items-center justify-between text-gray-800">
-                      <span>{example}</span>
+                      <span>{subMission.label}</span>
                       {isSelected && (
                         <span className="text-xs text-blue-500 font-semibold">선택됨</span>
                       )}
@@ -122,21 +122,6 @@ export default function AddMissionModal({
                 );
               })}
             </div>
-          </div>
-        )}
-
-        {/* 선택 요약 */}
-        {selection.categoryId && selection.selectedExamples.length > 0 && (
-          <div className="bg-green-50 rounded-2xl p-3 mb-4 border-2 border-green-200">
-            <p className="text-xs text-gray-600 font-bold">
-              ✓ 선택한 소주제 {selection.selectedExamples.length}개
-            </p>
-            <p className="font-bold text-gray-800 mt-1">{selectedCategory?.category}</p>
-            <ul className="text-sm text-gray-700 mt-2 space-y-1 list-disc list-inside">
-              {selection.selectedExamples.map((example) => (
-                <li key={example}>{example}</li>
-              ))}
-            </ul>
           </div>
         )}
 
@@ -150,19 +135,18 @@ export default function AddMissionModal({
           </button>
           <button
             onClick={() => {
-              if (selection.categoryId && selection.selectedExamples.length > 0) {
+              if (selection.categoryId && selection.selectedSubMissions.length > 0) {
                 onAdd({
-                  missionId: selection.categoryId,
-                  submissions: selection.selectedExamples,
+                  missionIds: selection.selectedSubMissions.map((s) => s.id),
                 });
               }
             }}
             disabled={
-              !selection.categoryId || selection.selectedExamples.length === 0 || loading
+              !selection.categoryId || selection.selectedSubMissions.length === 0 || loading
             }
             className={`flex-1 py-3 rounded-2xl font-medium text-white ${
               selection.categoryId &&
-              selection.selectedExamples.length > 0 &&
+              selection.selectedSubMissions.length > 0 &&
               !loading
                 ? "bg-green-300 hover:bg-green-400"
                 : "bg-gray-300 cursor-not-allowed"

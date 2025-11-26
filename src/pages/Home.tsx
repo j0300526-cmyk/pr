@@ -58,12 +58,18 @@ export default function HomePage({
     const trimmed = missionEntry.submission?.trim();
     if (trimmed) return trimmed;
     const catalog = allAvailableMissions.find((mission) => mission.id === missionEntry.missionId);
-    if (catalog) {
-      const fallbackSubmission =
-        catalog.submissions?.find((sub) => sub && sub.trim().length > 0) || catalog.name;
-      if (fallbackSubmission && fallbackSubmission.trim().length > 0) {
-        return fallbackSubmission.trim();
+    if (catalog && catalog.submissions && catalog.submissions.length > 0) {
+      // 새로운 구조: { id, label } 객체 배열
+      const firstSub = catalog.submissions[0];
+      if (firstSub && typeof firstSub === 'object' && 'label' in firstSub) {
+        const label = (firstSub as { label: string }).label;
+        if (label && typeof label === 'string' && label.trim().length > 0) {
+          return label.trim();
+        }
       }
+    }
+    if (catalog?.name) {
+      return catalog.name;
     }
     return `미션-${missionEntry.missionId}`;
   };
