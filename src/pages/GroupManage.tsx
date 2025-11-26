@@ -10,6 +10,8 @@ interface Props {
   setSelectedGroupMission: (m: Mission) => void;
   setLeaveTarget: (m: Mission) => void;
   onCreateGroup?: (name: string, color: string) => Promise<void>;
+  onDeleteGroup?: (id: number) => Promise<void>;
+  currentUserId?: number;
 }
 
 export default function GroupManagePage({
@@ -19,7 +21,9 @@ export default function GroupManagePage({
   joinGroup,
   setSelectedGroupMission,
   setLeaveTarget,
-  onCreateGroup
+  onCreateGroup,
+  onDeleteGroup,
+  currentUserId
 }: Props) {
   const [showCreateModal, setShowCreateModal] = React.useState(false);
   const [groupName, setGroupName] = React.useState("");
@@ -73,35 +77,47 @@ export default function GroupManagePage({
         </div>
 
         <div className="space-y-3">
-          {myGroupMissions.map((mission) => (
-            <div key={mission.id} className="bg-gray-50 rounded-3xl p-4">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className={`w-12 h-12 ${mission.color} rounded-full`} />
-                  <div>
-                    <h4 className="font-bold text-gray-800">{mission.name}</h4>
-                    <p className="text-sm text-gray-500">
-                      {mission.participants.length}/3명 참여중
-                    </p>
+          {myGroupMissions.map((mission) => {
+            const isOwner = currentUserId !== undefined && mission.created_by === currentUserId;
+            return (
+              <div key={mission.id} className="bg-gray-50 rounded-3xl p-4">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-12 h-12 ${mission.color} rounded-full`} />
+                    <div>
+                      <h4 className="font-bold text-gray-800">{mission.name}</h4>
+                      <p className="text-sm text-gray-500">
+                        {mission.participants.length}/3명 참여중
+                      </p>
+                    </div>
                   </div>
                 </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setSelectedGroupMission(mission)}
+                    className="flex-1 py-2 bg-white rounded-3xl text-sm text-gray-600 border border-gray-200"
+                  >
+                    참여자 보기
+                  </button>
+                  {isOwner && onDeleteGroup ? (
+                    <button
+                      onClick={() => onDeleteGroup(mission.id)}
+                      className="flex-1 py-2 bg-red-500 rounded-3xl text-sm text-white hover:bg-red-600 transition-colors"
+                    >
+                      삭제하기
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setLeaveTarget(mission)}
+                      className="flex-1 py-2 bg-red-50 rounded-3xl text-sm text-red-500"
+                    >
+                      나가기
+                    </button>
+                  )}
+                </div>
               </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setSelectedGroupMission(mission)}
-                  className="flex-1 py-2 bg-white rounded-3xl text-sm text-gray-600 border border-gray-200"
-                >
-                  참여자 보기
-                </button>
-                <button
-                  onClick={() => setLeaveTarget(mission)}
-                  className="flex-1 py-2 bg-red-50 rounded-3xl text-sm text-red-500"
-                >
-                  나가기
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

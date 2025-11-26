@@ -45,7 +45,8 @@ def group_mission_to_response(group: GroupMission, db: Session, checked: Optiona
         participants=participants,
         total_score=total_score * 2,  # 그룹 미션은 2점
         member_count=len(participants),
-        checked=checked
+        checked=checked,
+        created_by=group.created_by
     )
 
 @router.get("/my", response_model=List[GroupMissionResponse])
@@ -284,4 +285,32 @@ async def check_group_mission(
     
     db.commit()
     return {"message": "완료 상태가 업데이트되었습니다"}
+
+@router.delete("/{group_id}")
+async def delete_group(
+    group_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """그룹 미션 삭제 (방장만 가능)"""
+    # 그룹 존재 확인
+    group = db.query(GroupMission).filter(GroupMission.id == group_id).first()
+    if not group:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="존재하지 않는 그룹입니다"
+        )
+    
+    # 방장 권한 확인
+    if group.created_by != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="그룹을 만든 사람만 삭제할 수 있습니다"
+        )
+    
+    # 그룹 삭제 (cascade로 관련 데이터도 함께 삭제됨)
+    db.delete(group)
+    db.commit()
+    
+    return {"message": "그룹이 삭제되었습니다"}
 

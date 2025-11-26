@@ -74,4 +74,11 @@ export const groupMissionApi = {
       body: JSON.stringify({ name, color }),
     });
   },
+
+  // 그룹 미션 삭제 (방장만 가능)
+  deleteGroup: async (groupId: number): Promise<void> => {
+    return request(`/group-missions/${groupId}`, {
+      method: "DELETE",
+    });
+  },
 };

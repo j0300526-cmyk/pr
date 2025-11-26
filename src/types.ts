@@ -12,6 +12,8 @@ export interface Mission {
   color: string;
   // 완료 상태 (옵셔널, 서버에서 불러올 때 포함)
   checked?: boolean;
+  // 그룹을 만든 사용자 ID (옵셔널, 그룹 미션인 경우)
+  created_by?: number;
 }
 export interface WeekDay {
   num: number;

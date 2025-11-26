@@ -104,6 +104,7 @@ class GroupMissionResponse(GroupMissionBase):
     total_score: Optional[int] = 0
     member_count: int
     checked: Optional[bool] = None  # 날짜별 체크 상태 (선택적)
+    created_by: Optional[int] = None  # 그룹을 만든 사용자 ID
     
     class Config:
         from_attributes = True

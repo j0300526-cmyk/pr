@@ -304,6 +304,13 @@ export const groupMissionApi = {
       body: JSON.stringify({ date: dateStr, completed }),
     });
   },
+
+  // 그룹 미션 삭제 (방장만 가능)
+  deleteGroup: async (groupId: number): Promise<void> => {
+    return request<void>(`/group-missions/${groupId}`, {
+      method: "DELETE",
+    });
+  },
 };
 
 // ===== 친구/초대 API =====

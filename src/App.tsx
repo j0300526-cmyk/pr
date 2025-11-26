@@ -411,49 +411,18 @@ function App() {
   const fetchAvailableMissions = async () => {
     try {
       setLoadingAvailable(true);
-      let list: CatalogMission[] | null = null;
-
-      // 1) 서버 시도
-      try {
-        const server = await api("/missions/catalog");
-        if (Array.isArray(server)) list = server as CatalogMission[];
-      } catch {
-        /* 캐시로 fallback */
-      }
-
-      // 2) 캐시 시도
-      if (!list) {
-        const cachedR = await safeStorage.get(
-          STORAGE_KEYS.availableMissions
-        );
-        const cached = getVal(cachedR);
-        if (cached) {
-          const arr = JSON.parse(cached) as CatalogMission[];
-          if (Array.isArray(arr)) list = arr;
-        }
-      }
-
-      // 3) 목 데이터 폴백
-      if (!list) {
-        list = [
-          { id: 101, name: "텀블러 사용하기", category: "일상", submissions: ["텀블러 사용하기"] },
-          { id: 102, name: "리필스테이션 이용", category: "일상", submissions: ["리필스테이션 이용"] },
-          { id: 103, name: "대중교통 이용하기", category: "모빌리티", submissions: ["대중교통 이용하기"] },
-          { id: 104, name: "에코백 사용하기", category: "일상", submissions: ["에코백 사용하기"] },
-          { id: 105, name: "분리수거 철저히 하기", category: "분리배출", submissions: ["분리수거 철저히 하기"] },
-          { id: 106, name: "플라스틱 프리 챌린지", category: "캠페인", submissions: ["플라스틱 프리 챌린지"] },
-          { id: 107, name: "비닐봉투 거절하기", category: "일상", submissions: ["비닐봉투 거절하기"] },
-          { id: 108, name: "리유저블 식기 사용", category: "일상", submissions: ["리유저블 식기 사용"] },
-          { id: 109, name: "잔반 남기지 않기", category: "식생활", submissions: ["잔반 남기지 않기"] },
-        ];
-      }
+      
+      // 프론트엔드에서 직접 사용 (서버 호출 없음)
+      const { FRONTEND_MISSIONS } = await import("./constants/missions");
+      const list = FRONTEND_MISSIONS;
 
       setAllAvailableMissions(list);
       await safeStorage.set(
         STORAGE_KEYS.availableMissions,
         JSON.stringify(list)
       );
-    } catch {
+    } catch (error) {
+      console.error("미션 목록 로드 실패:", error);
       showError("허용된 미션 목록을 불러오지 못했어요");
     } finally {
       setLoadingAvailable(false);
@@ -938,6 +907,39 @@ function App() {
     }
   };
 
+  const deleteGroup = async (missionId: number) => {
+    if (!window.confirm("정말 이 그룹을 삭제하시겠어요? 삭제된 그룹은 복구할 수 없습니다.")) {
+      return;
+    }
+
+    try {
+      const { groupMissionApi } = await import("./api");
+      await groupMissionApi.deleteGroup(missionId);
+      
+      // 내 그룹 목록에서 제거
+      const next = myGroupMissions.filter((m) => m.id !== missionId);
+      setMyGroupMissions(next);
+      saveMyGroups(next);
+      groupMissionCacheRef.current.clear();
+      
+      // 선택된 그룹이 삭제된 경우 초기화
+      if (selectedGroupMission && selectedGroupMission.id === missionId) {
+        setSelectedGroupMission(null);
+      }
+      
+      showError("그룹이 삭제되었어요");
+    } catch (error: any) {
+      const status = (error as any)?.status;
+      if (status === 403) {
+        showError("그룹을 만든 사람만 삭제할 수 있어요");
+      } else if (status === 404) {
+        showError("그룹을 찾을 수 없습니다");
+      } else {
+        showError(error.message || "그룹 삭제에 실패했어요");
+      }
+    }
+  };
+
   const logout = async () => {
     try {
       const { authApi } = await import("./api");
@@ -1307,6 +1309,8 @@ function App() {
               setSelectedGroupMission={setSelectedGroupMission}
               setLeaveTarget={setLeaveTarget}
               onCreateGroup={createGroup}
+              onDeleteGroup={deleteGroup}
+              currentUserId={userId}
             />
           )}
 
