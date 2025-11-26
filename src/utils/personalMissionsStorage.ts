@@ -94,11 +94,11 @@ export function getWeeklyRoutinesForDate(dateStr: string): PersonalMissionEntry[
     const routines = loadWeeklyRoutines(weekStart);
     return routines
       .filter((r) => r.startDate <= dateStr) // 시작일 이후인 루틴만
-      .map((r) => ({
+      .map((r, index) => ({
         missionId: r.missionId,
         submission: r.submission,
         is_weekly_routine: true,
-        routine_id: `${weekStart}-${r.missionId}-${r.submission}`, // 고유 ID
+        routine_id: index + 1, // 숫자 ID (실제로는 사용되지 않지만 타입 호환을 위해)
         completed: false,
         dayMissionId: undefined,
       }));
