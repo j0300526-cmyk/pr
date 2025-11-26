@@ -33,25 +33,35 @@ export function loadDayMissions(dateStr: string): PersonalMissionEntry[] {
   }
 }
 
-// 주간 루틴 저장 (주 시작일 기준)
+// 주간 루틴 저장 (주 시작일 기준, 최대 3개 제한)
 export function saveWeeklyRoutine(weekStart: string, routine: {
   missionId: number;
   submission: string;
   startDate: string; // 실제 시작 날짜
-}): void {
+}): { success: boolean; message?: string } {
   try {
     const key = `${WEEKLY_ROUTINE_PREFIX}${weekStart}`;
     const existing = loadWeeklyRoutines(weekStart);
+    
     // 중복 확인
     const exists = existing.some(
       (r) => r.missionId === routine.missionId && r.submission === routine.submission
     );
-    if (!exists) {
-      existing.push(routine);
-      localStorage.setItem(key, JSON.stringify(existing));
+    if (exists) {
+      return { success: false, message: "이미 추가된 루틴이에요." };
     }
+    
+    // 최대 3개 제한
+    if (existing.length >= 3) {
+      return { success: false, message: "주간 루틴은 최대 3개까지 추가할 수 있어요." };
+    }
+    
+    existing.push(routine);
+    localStorage.setItem(key, JSON.stringify(existing));
+    return { success: true };
   } catch (error) {
     console.error("Failed to save weekly routine:", error);
+    return { success: false, message: "루틴 추가에 실패했어요." };
   }
 }
 

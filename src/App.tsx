@@ -689,11 +689,16 @@ function App() {
     try {
       // 주간 루틴으로 추가 (selectedDate부터 그 주 일요일까지 자동 생성)
       const weekStart = getMondayOfWeek(selectedDate);
-      saveWeeklyRoutine(weekStart, {
+      const result = saveWeeklyRoutine(weekStart, {
         missionId,
         submission: trimmedSubmission,
         startDate: selectedDate,
       });
+
+      if (!result.success) {
+        showError(result.message || "루틴 추가에 실패했어요");
+        return false;
+      }
 
       if (import.meta.env.DEV) {
         console.log("[DEBUG addMission] 주간 루틴 추가 성공");
@@ -798,11 +803,16 @@ function App() {
     // 로컬 스토리지에 추가
     try {
       const weekStart = getMondayOfWeek(selectedDate || getTodayKST());
-      saveWeeklyRoutine(weekStart, {
+      const result = saveWeeklyRoutine(weekStart, {
         missionId,
         submission: trimmedSubmission,
         startDate: selectedDate || getTodayKST(),
       });
+
+      if (!result.success) {
+        showError(result.message || "주간 루틴 추가에 실패했어요");
+        return;
+      }
 
       showError("주간 루틴이 추가되었어요!");
       // 모든 날짜의 미션 다시 로드 (주간 루틴이 모든 날짜에 표시되도록)
