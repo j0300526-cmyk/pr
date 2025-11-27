@@ -4,6 +4,7 @@ import { CatalogMission, Mission, PersonalMissionEntry, WeekDay } from "../types
 import { isTodayMonday } from "../utils/date";
 import { groupMissionApi } from "../api/groupMission";
 import { saveDayMissions, loadDayMissions } from "../utils/personalMissionsStorage";
+import { safeStorage } from "../storage";
 
 interface Props {
   userName: string;
@@ -49,6 +50,32 @@ export default function HomePage({
 }: Props) {
   const [checkedMissions, setCheckedMissions] = React.useState<Record<number, boolean>>({});
   const [personalMissionChecked, setPersonalMissionChecked] = React.useState<Record<string, boolean>>({});
+  const [showAnnouncement, setShowAnnouncement] = React.useState(false);
+
+  // 공지사항 표시 여부 확인
+  React.useEffect(() => {
+    const checkAnnouncement = async () => {
+      try {
+        const dismissed = await safeStorage.get("announcement_dismissed");
+        if (!dismissed) {
+          setShowAnnouncement(true);
+        }
+      } catch (error) {
+        console.error("공지사항 상태 확인 실패:", error);
+      }
+    };
+    checkAnnouncement();
+  }, []);
+
+  const handleCloseAnnouncement = async () => {
+    try {
+      await safeStorage.set("announcement_dismissed", "true");
+      setShowAnnouncement(false);
+    } catch (error) {
+      console.error("공지사항 닫기 실패:", error);
+      setShowAnnouncement(false);
+    }
+  };
 
   const getMissionKey = (missionEntry: PersonalMissionEntry) =>
     `${missionEntry.missionId}::${missionEntry.submission}`;
@@ -162,6 +189,27 @@ export default function HomePage({
 
   return (
     <div className="px-6 py-6 rounded-3xl">
+      {/* 공지사항 */}
+      {showAnnouncement && (
+        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-2xl relative">
+          <button
+            onClick={handleCloseAnnouncement}
+            className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 transition-colors"
+            aria-label="공지사항 닫기"
+          >
+            <X size={20} />
+          </button>
+          <div className="pr-6">
+            <h3 className="text-sm font-bold text-blue-900 mb-1">공지사항</h3>
+            <p className="text-xs text-blue-700">
+              일상 속 제로웨이스트 실천 챌린지, 에코링크 챌린지에 오신 여러분 환영합니다 🍀
+            </p>
+            {/* 나중에 링크 추가 예정 */}
+            {/* <a href="#" className="text-xs text-blue-600 underline mt-1 block">자세히 보기</a> */}
+          </div>
+        </div>
+      )}
+
       {/* 상단 헤더 */}
       <div className="flex justify-between items-center mb-6">
         <div>

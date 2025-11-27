@@ -26,9 +26,10 @@ export const calculateStreak = (missions: MissionsRecord): number => {
   return streak;
 };
 
+// 체크된 미션만 카운트하는 함수
 export const countTotalMissions = (missions: MissionsRecord): number =>
   Object.values(missions).reduce(
-    (acc, arr) => acc + (arr?.length ?? 0),
+    (acc, arr) => acc + (arr?.filter(m => m.completed === true)?.length ?? 0),
     0,
   );
 
