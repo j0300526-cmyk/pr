@@ -3,6 +3,7 @@ import { PersonalMissionEntry } from "../types";
 
 const STORAGE_PREFIX = "personal_missions:";
 const WEEKLY_ROUTINE_PREFIX = "weekly_routines:";
+const WEEKLY_ROUTINE_COMPLETION_PREFIX = "weekly_routine_completion:";
 
 // 날짜별 미션 저장
 export function saveDayMissions(dateStr: string, missions: PersonalMissionEntry[]): void {
@@ -102,12 +103,48 @@ export function deleteWeeklyRoutine(weekStart: string, missionId: number, submis
   }
 }
 
+// 주간 루틴의 완료 상태 저장 (날짜별)
+export function saveWeeklyRoutineCompletion(
+  dateStr: string,
+  missionId: number,
+  submission: string,
+  completed: boolean
+): void {
+  try {
+    const key = `${WEEKLY_ROUTINE_COMPLETION_PREFIX}${dateStr}`;
+    const data = loadWeeklyRoutineCompletions(dateStr);
+    const completionKey = `${missionId}::${submission}`;
+    if (completed) {
+      data[completionKey] = true;
+    } else {
+      delete data[completionKey];
+    }
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch (error) {
+    console.error("Failed to save weekly routine completion:", error);
+  }
+}
+
+// 주간 루틴의 완료 상태 로드 (날짜별)
+export function loadWeeklyRoutineCompletions(dateStr: string): Record<string, boolean> {
+  try {
+    const key = `${WEEKLY_ROUTINE_COMPLETION_PREFIX}${dateStr}`;
+    const data = localStorage.getItem(key);
+    if (!data) return {};
+    return JSON.parse(data);
+  } catch (error) {
+    console.error("Failed to load weekly routine completions:", error);
+    return {};
+  }
+}
+
 // 특정 날짜에 주간 루틴 적용 (해당 날짜가 속한 주의 루틴을 해당 날짜에 적용)
 export function getWeeklyRoutinesForDate(dateStr: string): PersonalMissionEntry[] {
   try {
     // 날짜가 속한 주의 월요일 계산
     const weekStart = getMondayOfWeek(dateStr);
     const routines = loadWeeklyRoutines(weekStart);
+    const completions = loadWeeklyRoutineCompletions(dateStr);
     
     return routines
       .filter((r) => r.startDate <= dateStr) // 시작일 이후인 루틴만
@@ -118,12 +155,15 @@ export function getWeeklyRoutinesForDate(dateStr: string): PersonalMissionEntry[
           return hash & hash;
         }, 0);
         
+        const completionKey = `${r.missionId}::${r.submission}`;
+        const completed = completions[completionKey] || false;
+        
         return {
           missionId: r.missionId,
           submission: r.submission,
           is_weekly_routine: true,
           routine_id: Math.abs(uniqueId) || (index + 1), // 고유한 숫자 ID
-          completed: false,
+          completed: completed,
           dayMissionId: undefined,
         };
       });

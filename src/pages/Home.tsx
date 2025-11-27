@@ -3,7 +3,7 @@ import { Plus, X } from "lucide-react";
 import { CatalogMission, Mission, PersonalMissionEntry, WeekDay } from "../types";
 import { isTodayMonday } from "../utils/date";
 import { groupMissionApi } from "../api/groupMission";
-import { saveDayMissions, loadDayMissions } from "../utils/personalMissionsStorage";
+import { saveDayMissions, loadDayMissions, saveWeeklyRoutineCompletion } from "../utils/personalMissionsStorage";
 import { safeStorage } from "../storage";
 
 interface Props {
@@ -134,9 +134,16 @@ export default function HomePage({
     setPersonalMissionChecked((prev) => ({ ...prev, [key]: newChecked }));
 
     try {
-      // 주간 루틴인 경우: 로컬 스토리지에 완료 상태 저장하지 않음 (주간 루틴은 체크만 표시)
+      // 주간 루틴인 경우: 주간 루틴 완료 상태 저장
       // 일일 미션인 경우: 로컬 스토리지에 완료 상태 저장
-      if (!missionEntry.is_weekly_routine) {
+      if (missionEntry.is_weekly_routine) {
+        saveWeeklyRoutineCompletion(
+          selectedDate,
+          missionEntry.missionId,
+          missionEntry.submission,
+          newChecked
+        );
+      } else {
         const dayMissions = loadDayMissions(selectedDate);
         const missionIndex = dayMissions.findIndex(
           (m) => m.missionId === missionEntry.missionId && m.submission === missionEntry.submission
@@ -191,7 +198,7 @@ export default function HomePage({
     <div className="px-6 py-6 rounded-3xl">
       {/* 공지사항 */}
       {showAnnouncement && (
-        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-2xl relative">
+        <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-2xl relative">
           <button
             onClick={handleCloseAnnouncement}
             className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 transition-colors"
@@ -200,12 +207,12 @@ export default function HomePage({
             <X size={20} />
           </button>
           <div className="pr-6">
-            <h3 className="text-sm font-bold text-blue-900 mb-1">공지사항</h3>
-            <p className="text-xs text-blue-700">
+            <h3 className="text-sm font-bold text-amber-900 mb-1">공지사항</h3>
+            <p className="text-xs text-amber-800">
               일상 속 제로웨이스트 실천 챌린지, 에코링크 챌린지에 오신 여러분 환영합니다 🍀
             </p>
             {/* 나중에 링크 추가 예정 */}
-            {/* <a href="#" className="text-xs text-blue-600 underline mt-1 block">자세히 보기</a> */}
+            {/* <a href="#" className="text-xs text-amber-700 underline mt-1 block">자세히 보기</a> */}
           </div>
         </div>
       )}
