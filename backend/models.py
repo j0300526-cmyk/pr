@@ -71,7 +71,7 @@ class GroupMission(Base):
     
     # 관계
     members = relationship("GroupMember", back_populates="group_mission", cascade="all, delete-orphan")
-    checks = relationship("GroupMissionCheck", back_populates="group_mission")
+    checks = relationship("GroupMissionCheck", back_populates="group_mission", cascade="all, delete-orphan")
 
 class GroupMember(Base):
     __tablename__ = "group_members"

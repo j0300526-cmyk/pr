@@ -308,22 +308,37 @@ async def delete_group(
             detail="그룹을 만든 사람만 삭제할 수 있습니다"
         )
     
-    # 관련 데이터 먼저 삭제 (외래키 제약조건 때문에 순서 중요)
+    # 관련 데이터 먼저 삭제 (cascade가 있지만 명시적으로 삭제하여 안전하게 처리)
     # 1. 그룹 미션 체크 삭제
-    db.query(GroupMissionCheck).filter(
+    check_count = db.query(GroupMissionCheck).filter(
         GroupMissionCheck.group_mission_id == group_id
-    ).delete(synchronize_session=False)
+    ).count()
+    if check_count > 0:
+        db.query(GroupMissionCheck).filter(
+            GroupMissionCheck.group_mission_id == group_id
+        ).delete()
+        db.flush()
     
     # 2. 그룹 멤버 삭제
-    db.query(GroupMember).filter(
+    member_count = db.query(GroupMember).filter(
         GroupMember.group_mission_id == group_id
-    ).delete(synchronize_session=False)
+    ).count()
+    if member_count > 0:
+        db.query(GroupMember).filter(
+            GroupMember.group_mission_id == group_id
+        ).delete()
+        db.flush()
     
     # 3. 초대 삭제 (있다면)
     from models import Invite
-    db.query(Invite).filter(
+    invite_count = db.query(Invite).filter(
         Invite.group_mission_id == group_id
-    ).delete(synchronize_session=False)
+    ).count()
+    if invite_count > 0:
+        db.query(Invite).filter(
+            Invite.group_mission_id == group_id
+        ).delete()
+        db.flush()
     
     # 4. 그룹 삭제
     db.delete(group)
