@@ -1,5 +1,6 @@
 import React from "react";
 import { Plus, X } from "lucide-react";
+import Confetti from "react-confetti";
 import { CatalogMission, Mission, PersonalMissionEntry, WeekDay } from "../types";
 import { isTodayMonday } from "../utils/date";
 import { groupMissionApi } from "../api/groupMission";
@@ -51,6 +52,8 @@ export default function HomePage({
   const [checkedMissions, setCheckedMissions] = React.useState<Record<number, boolean>>({});
   const [personalMissionChecked, setPersonalMissionChecked] = React.useState<Record<string, boolean>>({});
   const [showAnnouncement, setShowAnnouncement] = React.useState(false);
+  const [showConfetti, setShowConfetti] = React.useState(false);
+  const [windowSize, setWindowSize] = React.useState({ width: 0, height: 0 });
 
   // 공지사항 표시 여부 확인
   React.useEffect(() => {
@@ -65,6 +68,16 @@ export default function HomePage({
       }
     };
     checkAnnouncement();
+  }, []);
+
+  // 윈도우 크기 설정
+  React.useEffect(() => {
+    const updateSize = () => {
+      setWindowSize({ width: window.innerWidth, height: window.innerHeight });
+    };
+    updateSize();
+    window.addEventListener("resize", updateSize);
+    return () => window.removeEventListener("resize", updateSize);
   }, []);
 
   const handleCloseAnnouncement = async () => {
@@ -111,6 +124,12 @@ export default function HomePage({
     const currentChecked = !!checkedMissions[id];
     const newChecked = !currentChecked;
 
+    // 미션 성공 시 폭죽 효과
+    if (newChecked && !currentChecked) {
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 3000);
+    }
+
     // 로컬 상태 먼저 업데이트 (낙관적 업데이트)
     setCheckedMissions((prev) => ({ ...prev, [id]: newChecked }));
 
@@ -129,6 +148,12 @@ export default function HomePage({
     const key = getMissionKey(missionEntry);
     const currentChecked = !!personalMissionChecked[key];
     const newChecked = !currentChecked;
+
+    // 미션 성공 시 폭죽 효과
+    if (newChecked && !currentChecked) {
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 3000);
+    }
 
     // 로컬 상태 먼저 업데이트 (낙관적 업데이트)
     setPersonalMissionChecked((prev) => ({ ...prev, [key]: newChecked }));
@@ -196,6 +221,17 @@ export default function HomePage({
 
   return (
     <div className="px-6 py-6 rounded-3xl">
+      {/* 폭죽 효과 */}
+      {showConfetti && (
+        <Confetti
+          width={windowSize.width}
+          height={windowSize.height}
+          recycle={false}
+          numberOfPieces={200}
+          gravity={0.3}
+        />
+      )}
+      
       {/* 공지사항 */}
       {showAnnouncement && (
         <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-2xl relative">
