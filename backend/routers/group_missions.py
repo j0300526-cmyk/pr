@@ -308,7 +308,24 @@ async def delete_group(
             detail="그룹을 만든 사람만 삭제할 수 있습니다"
         )
     
-    # 그룹 삭제 (cascade로 관련 데이터도 함께 삭제됨)
+    # 관련 데이터 먼저 삭제 (외래키 제약조건 때문에 순서 중요)
+    # 1. 그룹 미션 체크 삭제
+    db.query(GroupMissionCheck).filter(
+        GroupMissionCheck.group_mission_id == group_id
+    ).delete(synchronize_session=False)
+    
+    # 2. 그룹 멤버 삭제
+    db.query(GroupMember).filter(
+        GroupMember.group_mission_id == group_id
+    ).delete(synchronize_session=False)
+    
+    # 3. 초대 삭제 (있다면)
+    from models import Invite
+    db.query(Invite).filter(
+        Invite.group_mission_id == group_id
+    ).delete(synchronize_session=False)
+    
+    # 4. 그룹 삭제
     db.delete(group)
     db.commit()
     
