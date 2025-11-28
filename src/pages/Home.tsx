@@ -234,7 +234,7 @@ export default function HomePage({
       
       {/* 공지사항 */}
       {showAnnouncement && (
-        <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-2xl relative">
+        <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-2xl relative">
           <button
             onClick={handleCloseAnnouncement}
             className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 transition-colors"
@@ -243,12 +243,34 @@ export default function HomePage({
             <X size={20} />
           </button>
           <div className="pr-6">
-            <h3 className="text-sm font-bold text-amber-900 mb-1">공지사항</h3>
-            <p className="text-xs text-amber-800">
-              일상 속 제로웨이스트 실천 챌린지, 에코링크 챌린지에 오신 여러분 환영합니다 🍀
-            </p>
-            {/* 나중에 링크 추가 예정 */}
-            {/* <a href="#" className="text-xs text-amber-700 underline mt-1 block">자세히 보기</a> */}
+            <h3 className="text-sm font-bold text-green-900 mb-1">공지사항</h3>
+            <div className="text-xs text-green-800 space-y-1">
+              <p>
+                일상 속 제로웨이스트 실천 챌린지, 에코링크 챌린지에 오신 여러분 환영합니다 🍀
+              </p>
+              <p>
+                개인인증방 바로가기 👉{" "}
+                <a 
+                  href="https://open.kakao.com/o/gH1byL3h" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-green-600 underline hover:text-green-700"
+                >
+                  https://open.kakao.com/o/gH1byL3h
+                </a>
+              </p>
+              <p>
+                그룹인증방 바로가기 👉{" "}
+                <a 
+                  href="https://open.kakao.com/o/g3zWFL3h" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-green-600 underline hover:text-green-700"
+                >
+                  https://open.kakao.com/o/g3zWFL3h
+                </a>
+              </p>
+            </div>
           </div>
         </div>
       )}
