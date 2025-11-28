@@ -246,9 +246,6 @@ export default function HomePage({
             <h3 className="text-sm font-bold text-green-900 mb-1">공지사항</h3>
             <div className="text-xs text-green-800 space-y-1">
               <p>
-                일상 속 제로웨이스트 실천 챌린지, 에코링크 챌린지에 오신 여러분 환영합니다 🍀
-              </p>
-              <p>
                 개인인증방 바로가기 👉{" "}
                 <a 
                   href="https://open.kakao.com/o/gH1byL3h" 
