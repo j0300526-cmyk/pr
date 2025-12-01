@@ -246,25 +246,14 @@ export default function HomePage({
             <h3 className="text-sm font-bold text-green-900 mb-1">공지사항</h3>
             <div className="text-xs text-green-800 space-y-1">
               <p>
-                개인인증방 바로가기 👉{" "}
+                가이드 바로가기 👉{" "}
                 <a 
-                  href="https://open.kakao.com/o/gH1byL3h" 
+                  href="https://general-muscari-e49.notion.site/2b8225bc650480a98973df74230f3f1f?pvs=143" 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="text-green-600 underline hover:text-green-700"
                 >
-                  https://open.kakao.com/o/gH1byL3h
-                </a>
-              </p>
-              <p>
-                그룹인증방 바로가기 👉{" "}
-                <a 
-                  href="https://open.kakao.com/o/g3zWFL3h" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-green-600 underline hover:text-green-700"
-                >
-                  https://open.kakao.com/o/g3zWFL3h
+                  https://general-muscari-e49.notion.site/2b8225bc650480a98973df74230f3f1f?pvs=143
                 </a>
               </p>
             </div>
