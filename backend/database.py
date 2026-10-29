@@ -14,22 +14,21 @@ load_dotenv()
 
 # 환경 변수에서 직접 DATABASE_URL 읽기
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./zero_waste.db")
-
-print(f"[DEBUG] DATABASE_URL: {DATABASE_URL[:50]}..." if len(DATABASE_URL) > 50 else f"[DEBUG] DATABASE_URL: {DATABASE_URL}")
+SQL_ECHO = os.getenv("SQL_ECHO", "false").lower() in {"1", "true", "yes", "on"}
 
 # SQLite 사용 시 check_same_thread=False 필요
 if DATABASE_URL.startswith("sqlite"):
     engine = create_engine(
         DATABASE_URL,
         connect_args={"check_same_thread": False},
-        echo=True,  # 개발 시 SQL 쿼리 로그 출력
+        echo=SQL_ECHO,
     )
 else:
     # PostgreSQL 사용 시 public 스키마 명시적 설정
     engine = create_engine(
         DATABASE_URL,
         connect_args={"options": "-c search_path=public"},
-        echo=True
+        echo=SQL_ECHO,
     )
     # 추가 안전장치: 모든 커넥션에 대해 search_path 설정
     @event.listens_for(engine, "connect")

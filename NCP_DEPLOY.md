@@ -76,8 +76,8 @@ ssh -i good2315 root@49.50.136.124
 DATABASE_URL=postgresql://user:password@localhost:5432/zero_waste_db
 
 # JWT 설정
-SECRET_KEY=your-secret-key-change-in-production
-ALGORITHM=HS256
+JWT_SECRET_KEY=replace-with-a-long-random-secret
+JWT_ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 REFRESH_TOKEN_EXPIRE_DAYS=7
 

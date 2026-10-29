@@ -57,6 +57,5 @@ VITE_API_BASE_URL=https://zero-waste-api.onrender.com/api
 ```bash
 cd backend
 python init_data.py
-python seed_catalog_simple.py
 ```
 

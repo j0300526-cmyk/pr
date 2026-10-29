@@ -30,13 +30,8 @@ export default function AddMissionModal({
   useEffect(() => {
     if (!visible) {
       setSelection({ categoryId: null, selectedSubMissions: [] });
-    } else {
-      // 디버그: 모달이 열렸을 때 미션 데이터 확인
-      console.log("[AddMissionModal] 모달 열림");
-      console.log("[AddMissionModal] availableMissions 개수:", availableMissions.length);
-      console.log("[AddMissionModal] availableMissions:", availableMissions);
     }
-  }, [visible, availableMissions]);
+  }, [visible]);
 
   if (!visible) return null;
 
@@ -46,7 +41,6 @@ export default function AddMissionModal({
   const filteredCategories = availableMissions;
 
   const handleCategorySelect = (categoryId: number) => {
-    console.log("[AddMissionModal] 대주제 선택:", categoryId);
     setSelection({ categoryId, selectedSubMissions: [] });
   };
 

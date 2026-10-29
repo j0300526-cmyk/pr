@@ -20,7 +20,6 @@ import { safeStorage } from "./storage";
 import ErrorToast from "./components/ErrorToast";
 import AddMissionModal from "./components/AddMissionModal";
 import GroupDetailModal from "./components/GroupDetailModal";
-import InviteReceiveModal from "./components/InviteReceiveModal";
 import LeaveConfirmModal from "./components/LeaveConfirmModal";
 import {
   generateWeekDays as createWeekDays,
@@ -31,15 +30,16 @@ import {
 } from "./utils/date";
 import {
   DEFAULT_GROUP_MISSIONS,
+  FRONTEND_MISSIONS,
   RECOMMENDED_MISSIONS,
 } from "./constants/missions";
 import { calculateStreak, countTotalMissions } from "./utils/missions";
 import { INITIAL_FRIENDS } from "./constants/users";
 import { STORAGE_KEYS } from "./constants/storage";
-import { api } from "./api";
+import { api, authApi, friendApi, groupMissionApi } from "./api";
 import type { DayCompletionSummary } from "./api/types";
+import { authStorageKeys, useAuthBootstrap } from "./hooks/useAuthBootstrap";
 import RankingPage from "./pages/Ranking"; // 파일명 맞춰서
-import KakaoCallbackPage from "./pages/KakaoCallback";
 import {
   saveDayMissions,
   loadDayMissions,
@@ -146,9 +146,6 @@ function App() {
   const [selectedInviteGroupId, setSelectedInviteGroupId] = useState<number | null>(null);
   const [sendingInvites, setSendingInvites] = useState(false);
 
-  const [isAuthed, setIsAuthed] = useState(false);
-  const [booting, setBooting] = useState(true);
-
   const currentMissionsMemo = useMemo(
     () => (selectedDate ? missions[selectedDate] || [] : []),
     [selectedDate, missions]
@@ -175,6 +172,7 @@ function App() {
     setErrorMessage(message);
     setTimeout(() => setErrorMessage(""), 3000);
   }, []);
+  const { booting, isAuthed, setIsAuthed } = useAuthBootstrap({ onError: showError });
 
   const getWeekDates = useCallback((iso: string | null) => {
     if (!iso) return [];
@@ -301,7 +299,6 @@ function App() {
   const loadInviteCandidates = useCallback(async () => {
     try {
       setLoadingFriends(true);
-      const { friendApi } = await import("./api");
       const list = await friendApi.getRandomCandidates(3);
       const normalized = Array.isArray(list)
         ? list.map((friend) => ({
@@ -427,7 +424,6 @@ function App() {
       setLoadingAvailable(true);
       
       // 프론트엔드에서 직접 사용 (서버 호출 없음)
-      const { FRONTEND_MISSIONS } = await import("./constants/missions");
       const list = FRONTEND_MISSIONS;
 
       setAllAvailableMissions(list);
@@ -600,7 +596,6 @@ function App() {
       groupMissionLoadingRef.current.add(cacheKey);
 
       try {
-        const { groupMissionApi } = await import("./api/groupMission");
         const groups = await groupMissionApi.getMyGroups(dateStr || undefined);
         const normalized = groups.map((mission: Mission) =>
           normalizeMissionParticipants(mission)
@@ -668,12 +663,6 @@ function App() {
       return false;
     }
 
-    if (import.meta.env.DEV) {
-      console.log("[DEBUG addMission] selectedDate:", selectedDate);
-      console.log("[DEBUG addMission] missionId:", missionId);
-      console.log("[DEBUG addMission] submission:", submission);
-    }
-
     const exists = allAvailableMissions.some((m) => m.id === missionId);
     if (!exists) {
       showError("등록된 미션만 추가할 수 있어요.");
@@ -698,10 +687,6 @@ function App() {
       if (!result.success) {
         showError(result.message || "루틴 추가에 실패했어요");
         return false;
-      }
-
-      if (import.meta.env.DEV) {
-        console.log("[DEBUG addMission] 주간 루틴 추가 성공");
       }
 
       showError("주간 루틴이 추가되었어요!");
@@ -735,7 +720,6 @@ function App() {
     }
 
     // ID로 소주제 정보 찾기
-    const { FRONTEND_MISSIONS } = await import("./constants/missions");
     const subMissionMap = new Map<number, { missionId: number; label: string }>();
     
     for (const mission of FRONTEND_MISSIONS) {
@@ -783,11 +767,6 @@ function App() {
     }
 
     const trimmedSubmission = submission.trim();
-
-    if (import.meta.env.DEV) {
-      console.log("[DEBUG addWeeklyRoutine] missionId:", missionId);
-      console.log("[DEBUG addWeeklyRoutine] submission:", trimmedSubmission);
-    }
 
     const exists = allAvailableMissions.some((m) => m.id === missionId);
     if (!exists) {
@@ -852,7 +831,6 @@ function App() {
     }
     
     try {
-      const { groupMissionApi } = await import("./api");
       const updatedGroup = await groupMissionApi.joinGroup(mission.id);
       const normalized = normalizeMissionParticipants(updatedGroup);
       const next = [...myGroupMissions, normalized];
@@ -875,7 +853,6 @@ function App() {
 
   const leaveGroup = async (missionId: number) => {
     try {
-      const { groupMissionApi } = await import("./api");
       await groupMissionApi.leaveGroup(missionId);
       const next = myGroupMissions.filter((m) => m.id !== missionId);
       setMyGroupMissions(next);
@@ -891,8 +868,6 @@ function App() {
 
   const createGroup = async (name: string, color: string) => {
     try {
-      const { groupMissionApi } = await import("./api/groupMission");
-      
       // 그룹 생성
       const newGroup = await groupMissionApi.createGroup(name, color);
       
@@ -934,7 +909,6 @@ function App() {
     }
 
     try {
-      const { groupMissionApi } = await import("./api");
       await groupMissionApi.deleteGroup(missionId);
       
       // 내 그룹 목록에서 제거
@@ -963,15 +937,13 @@ function App() {
 
   const logout = async () => {
     try {
-      const { authApi } = await import("./api");
-      // authApi may not implement logout in this project; call if exists
-      if ((authApi as any).logout) {
-        await (authApi as any).logout();
-      }
+      await authApi.logout();
     } catch {
-      // API 실패해도 로컬에서 토큰 제거
+      // 서버 로그아웃 실패는 로컬 로그아웃을 막지 않는다.
+    } finally {
       localStorage.removeItem("access");
       localStorage.removeItem("refresh");
+      sessionStorage.setItem(authStorageKeys.autoLoginDisabled, "true");
     }
     setIsAuthed(false);
   };
@@ -1007,7 +979,6 @@ function App() {
 
     try {
       setSendingInvites(true);
-      const { friendApi } = await import("./api");
       await friendApi.sendInvite(selectedInviteGroupId, selectedInvitees);
       showError("초대를 보냈어요!");
       setSelectedInvitees([]);
@@ -1020,67 +991,6 @@ function App() {
   };
 
   // ===== Effects =====
-
-  // 앱 초기화 (토큰 체크 + 카카오 콜백 처리)
-  useEffect(() => {
-    const init = async () => {
-      // 카카오 콜백 처리 (URL에 code 파라미터가 있는 경우)
-      const urlParams = new URLSearchParams(window.location.search);
-      const kakaoCode = urlParams.get("code");
-      
-      if (kakaoCode) {
-        console.log("[App] 카카오 인가 코드 감지, 백엔드로 전송 중...");
-        try {
-          // 타임아웃 설정 (10초)
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 10000);
-          
-          const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
-          const response = await fetch(`${API_BASE_URL}/auth/kakao/callback`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ code: kakaoCode }),
-            signal: controller.signal,
-          });
-          
-          clearTimeout(timeoutId);
-
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ detail: "카카오 로그인 실패" }));
-            throw new Error(errorData.detail || "카카오 로그인에 실패했습니다.");
-          }
-
-          const data = await response.json();
-          localStorage.setItem("access", data.access);
-          localStorage.setItem("refresh", data.refresh);
-          
-          console.log("[App] 카카오 로그인 성공");
-          
-          // URL에서 code 파라미터 제거하고 홈으로 리다이렉트
-          window.location.href = "/";
-        } catch (err: any) {
-          console.error("[App] 카카오 로그인 실패:", err);
-          if (err.name === 'AbortError') {
-            showError("백엔드 서버 응답 시간이 초과되었습니다. 백엔드 서버가 실행 중인지 확인해주세요.");
-          } else {
-            showError(err.message || "카카오 로그인 처리 중 오류가 발생했습니다.");
-          }
-          // 에러 발생 시 URL에서 code 파라미터 제거
-          window.history.replaceState({}, document.title, "/");
-          setBooting(false);
-        }
-      } else {
-        // 일반 토큰 체크
-        const token = localStorage.getItem("access");
-        if (token) {
-          setIsAuthed(true);
-        }
-      }
-      
-      setBooting(false);
-    };
-    init();
-  }, []);
 
   // 날짜가 바뀌면 달력/선택 날짜를 자동 진행 (오늘을 보고 있는 경우)
   useEffect(() => {
@@ -1121,21 +1031,10 @@ function App() {
       return;
     }
 
-    // 디버깅: 토큰 확인
-    if (import.meta.env.DEV) {
-      console.log("[App] 초기 데이터 로드 시작", {
-        hasToken: !!token,
-        tokenPreview: token ? `${token.substring(0, 20)}...` : "none",
-      });
-    }
-
     let serverDate: string | undefined;
     
     try {
       // 1) 서버에서 사용자 정보 시도
-      if (import.meta.env.DEV) {
-        console.log("[App] /users/me 요청 시작");
-      }
       const me: any = await api("/users/me");
       setUserName(me?.name ?? userName);
       setProfileColor(me?.profile_color ?? profileColor);
@@ -1165,7 +1064,6 @@ function App() {
 
         // 추천 그룹 목록도 가져오기
         try {
-          const { groupMissionApi } = await import("./api/groupMission");
           const recommended = await groupMissionApi.getRecommended();
           setRecommendedGroupMissions(
             recommended.map((mission: Mission) => normalizeMissionParticipants(mission))
@@ -1279,7 +1177,12 @@ function App() {
           className="w-full max-w-sm bg-white rounded-3xl shadow-xl flex flex-col"
           style={{ aspectRatio: "9/16", maxHeight: "90vh" }}
         >
-          <LoginPage onSuccess={() => setIsAuthed(true)} />
+          <LoginPage
+            onSuccess={() => {
+              sessionStorage.removeItem(authStorageKeys.autoLoginDisabled);
+              setIsAuthed(true);
+            }}
+          />
         </div>
       </div>
     );
@@ -1393,17 +1296,6 @@ function App() {
         onLeave={leaveGroup}
         onClose={() => setSelectedGroupMission(null)}
       />
-
-     <InviteReceiveModal
-  profile={null}
-  onAccept={(id: number) => {
-    // TODO: id로 그룹/초대 처리
-    console.log("accept invite", id);
-  }}
-  onDecline={(id: number) => {
-    console.log("decline invite", id);
-  }}
-/>
 
       <LeaveConfirmModal
         mission={leaveTarget}

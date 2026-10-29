@@ -42,29 +42,12 @@ export default function MyPage({
   const handleLogout = async () => {
     if (window.confirm("정말로 로그아웃하시겠습니까?")) {
       setShowSettings(false);
-      try {
-        const { authApi } = await import("../api");
-        // authApi에 logout이 정의되어 있지 않을 수 있으므로 안전하게 처리
-        if ((authApi as any).logout) {
-          await (authApi as any).logout();
-        } else {
-          localStorage.removeItem("access");
-          localStorage.removeItem("refresh");
-        }
-        if (onLogout) {
-          onLogout();
-        } else {
-          window.location.reload();
-        }
-      } catch (error) {
-        // API 오류가 나더라도 로컬 토큰 제거 및 로그아웃 처리
+      if (onLogout) {
+        await onLogout();
+      } else {
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
-        if (onLogout) {
-          onLogout();
-        } else {
-          window.location.reload();
-        }
+        window.location.reload();
       }
     }
   };

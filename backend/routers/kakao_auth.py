@@ -8,8 +8,10 @@ from auth import create_access_token, create_refresh_token, ACCESS_TOKEN_EXPIRE_
 from datetime import timedelta
 import httpx
 import os
+import logging
 
 router = APIRouter(prefix="/auth/kakao", tags=["카카오 로그인"])
+logger = logging.getLogger(__name__)
 
 KAKAO_CLIENT_ID = os.getenv("KAKAO_CLIENT_ID", "")
 KAKAO_REDIRECT_URI = os.getenv("KAKAO_REDIRECT_URI", "http://localhost:5173/auth/kakao/callback")
@@ -36,7 +38,7 @@ async def kakao_callback(request: KakaoCallbackRequest, db: Session = Depends(ge
         "code": code,
     }
     
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=10.0) as client:
         try:
             token_response = await client.post(token_url, data=token_data)
             token_response.raise_for_status()
@@ -93,27 +95,26 @@ async def kakao_callback(request: KakaoCallbackRequest, db: Session = Depends(ge
             )
             refresh_token_jwt = create_refresh_token(data={"sub": str(user.id)})
             
-            print(f"[DEBUG] 카카오 로그인 성공: user_id={user.id}, kakao_id={kakao_id}")
-            
             return TokenResponse(access=access_token_jwt, refresh=refresh_token_jwt)
             
-        except httpx.HTTPStatusError as e:
-            error_detail = "Unknown error"
-            try:
-                error_detail = e.response.json()
-            except:
-                error_detail = e.response.text
-            print(f"[ERROR] 카카오 API 오류: {e}")
-            print(f"[ERROR] 카카오 응답: {error_detail}")
-            print(f"[DEBUG] 요청 파라미터: client_id={KAKAO_CLIENT_ID[:10]}..., redirect_uri={KAKAO_REDIRECT_URI}")
+        except HTTPException:
+            raise
+        except httpx.HTTPStatusError as error:
+            logger.warning("Kakao API returned HTTP %s", error.response.status_code)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"카카오 로그인 실패: {error_detail}"
+                detail="카카오 로그인에 실패했습니다. 다시 시도해주세요."
             )
-        except Exception as e:
-            print(f"[ERROR] 카카오 로그인 처리 중 오류: {e}")
+        except httpx.RequestError:
+            logger.exception("Kakao API request failed")
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="카카오 로그인 서비스에 연결할 수 없습니다. 잠시 후 다시 시도해주세요."
+            )
+        except Exception:
+            logger.exception("Unexpected Kakao login error")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"카카오 로그인 처리 중 오류가 발생했습니다: {str(e)}"
+                detail="카카오 로그인 처리 중 오류가 발생했습니다."
             )
 

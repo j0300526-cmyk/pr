@@ -30,19 +30,11 @@ async function refreshToken(): Promise<boolean> {
 
 export async function request<T>(
   path: string,
-  options?: RequestInit
+  options?: RequestInit,
+  hasRetriedAfterRefresh = false,
 ): Promise<T> {
   // 토큰을 요청 직전에 다시 읽어서 최신 값 사용
   const token = localStorage.getItem("access");
-  
-  // 토큰이 없으면 경고 (로그인 직후 요청인 경우)
-  if (!token && import.meta.env.DEV) {
-    console.warn("[API Request] ⚠️ 토큰이 없습니다. localStorage 확인:", {
-      access: localStorage.getItem("access"),
-      refresh: localStorage.getItem("refresh"),
-      allKeys: Object.keys(localStorage),
-    });
-  }
   
   // 기본 헤더 설정
   const headers: Record<string, string> = {
@@ -70,61 +62,22 @@ export async function request<T>(
   // 토큰이 있으면 Authorization 헤더 추가 (항상 우선)
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
-  } else {
-    // 토큰이 없으면 경고
-    if (import.meta.env.DEV) {
-      console.warn("[API Request] 토큰이 없습니다:", path);
-    }
-  }
-
-  // 디버깅: 토큰이 있는지 확인
-  if (import.meta.env.DEV) {
-    console.log("[API Request]", path, {
-      hasToken: !!token,
-      tokenPreview: token ? `${token.substring(0, 20)}...` : "none",
-      tokenLength: token?.length || 0,
-      headers: Object.keys(headers),
-      authorizationHeader: headers["Authorization"] ? `${headers["Authorization"].substring(0, 30)}...` : "none",
-      allHeaders: { ...headers }, // 실제 헤더 값 확인
-      localStorageAccess: localStorage.getItem("access") ? "exists" : "missing",
-    });
   }
 
   // options에서 headers를 제거하고 새로 만든 headers를 사용
   const { headers: _, ...restOptions } = options || {};
-  
-  // 최종 헤더 확인 (디버깅)
-  if (import.meta.env.DEV && path === "/users/me") {
-    console.log("[API Request] 최종 헤더:", {
-      Authorization: headers["Authorization"] ? `${headers["Authorization"].substring(0, 50)}...` : "없음",
-      ContentType: headers["Content-Type"],
-      allHeaders: headers,
-    });
-  }
   
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...restOptions,
     headers,
   });
 
-  // 응답 상태 로깅
-  if (import.meta.env.DEV) {
-    console.log("[API Response]", path, {
-      status: response.status,
-      statusText: response.statusText,
-      ok: response.ok,
-    });
-  }
-
   if (!response.ok) {
     if (response.status === 401) {
-      // 토큰 만료 시 리프레시 시도
-      const refreshed = await refreshToken();
-      if (refreshed) {
-        // 재시도
-        return request<T>(path, options);
+      if (!hasRetriedAfterRefresh && await refreshToken()) {
+        return request<T>(path, options, true);
       }
-      // 리프레시 실패 시 토큰 삭제 (서명 검증 실패 등)
+
       console.warn("[API] 인증 실패 - 토큰 삭제 및 재로그인 필요");
       localStorage.removeItem("access");
       localStorage.removeItem("refresh");
@@ -134,7 +87,7 @@ export async function request<T>(
     
     const error = await response.json().catch(() => ({ message: "요청에 실패했습니다." }));
     const msg = error.message || error.detail || `HTTP ${response.status}`;
-    const err: any = new Error(msg);
+    const err = new Error(msg) as Error & { status?: number };
     err.status = response.status;
     throw err;
   }

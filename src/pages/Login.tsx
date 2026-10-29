@@ -1,6 +1,7 @@
 // src/pages/Login.tsx
 import React, { useState } from "react";
 import { Leaf, ShieldCheck } from "lucide-react";
+import { authApi } from "../api";
 
 type Props = { onSuccess: () => void };
 
@@ -9,16 +10,6 @@ export default function LoginPage({ onSuccess }: Props) {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
-
-  // ✅ 개발용: 백엔드 없어도 로그인 통과시키기
-  const devBypassLogin = () => {
-    // 원하는 값으로 바꿔도 됨
-    const access = "dev-access-token";
-    const refresh = "dev-refresh-token";
-    localStorage.setItem("access", access);
-    localStorage.setItem("refresh", refresh);
-    onSuccess();
-  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,15 +22,11 @@ export default function LoginPage({ onSuccess }: Props) {
       }
 
       // 실제 백엔드 API 호출
-      const { authApi } = await import("../api");
       await authApi.login(email, password); // 여기서 토큰 저장까지 끝
 
-      // 토큰이 저장된 후에 onSuccess 호출
-      // 다음 이벤트 루프에서 실행되도록 하여 localStorage가 확실히 반영되도록
-      await new Promise((resolve) => setTimeout(resolve, 100));
       onSuccess();
-    } catch (e: any) {
-      setErr(e.message || "로그인에 실패했습니다.");
+    } catch (error) {
+      setErr(error instanceof Error ? error.message : "로그인에 실패했습니다.");
     } finally {
       setLoading(false);
     }
@@ -57,16 +44,6 @@ export default function LoginPage({ onSuccess }: Props) {
     
     const kakaoAuthUrl = `https://kauth.kakao.com/oauth/authorize?client_id=${KAKAO_CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code`;
     window.location.href = kakaoAuthUrl;
-  };
-
-  const handleGoogle = () => {
-    // TODO: 구글 소셜 로그인 연동
-    alert("Google 소셜 로그인 연동 예정입니다 😊");
-  };
-
-  const handleNaver = () => {
-    // TODO: 네이버 소셜 로그인 연동
-    alert("네이버 소셜 로그인 연동 예정입니다 😊");
   };
 
   return (
@@ -109,26 +86,26 @@ export default function LoginPage({ onSuccess }: Props) {
         </button>
 
         <button
-          onClick={handleGoogle}
-          className="w-full flex items-center justify-between px-4 py-3 rounded-3xl bg-white text-gray-800 font-medium border border-gray-200 shadow-sm active:scale-[0.99] transition-transform"
+          disabled
+          className="w-full flex items-center justify-between px-4 py-3 rounded-3xl bg-gray-50 text-gray-400 font-medium border border-gray-200 cursor-not-allowed"
         >
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-[11px]">
               G
             </div>
-            <span className="text-sm">Google 계정으로 로그인</span>
+            <span className="text-sm">Google 로그인 (준비 중)</span>
           </div>
         </button>
 
         <button
-          onClick={handleNaver}
-          className="w-full flex items-center justify-between px-4 py-3 rounded-3xl bg-[#03C75A] text-white font-medium shadow-sm active:scale-[0.99] transition-transform"
+          disabled
+          className="w-full flex items-center justify-between px-4 py-3 rounded-3xl bg-green-300 text-white font-medium cursor-not-allowed"
         >
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center text-[11px] font-bold">
               N
             </div>
-            <span className="text-sm">네이버로 로그인</span>
+            <span className="text-sm">네이버 로그인 (준비 중)</span>
           </div>
         </button>
       </section>
@@ -177,7 +154,7 @@ export default function LoginPage({ onSuccess }: Props) {
         </div>
 
         {err && (
-          <p className="text-red-500 text-xs bg-red-50 rounded-xl px-3 py-2">
+          <p role="alert" className="text-red-500 text-xs bg-red-50 rounded-xl px-3 py-2">
             {err}
           </p>
         )}

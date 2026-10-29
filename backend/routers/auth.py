@@ -1,13 +1,11 @@
 # 인증 관련 라우터
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from database import get_db
 from models import User
 from schemas import LoginRequest, TokenResponse, RefreshTokenRequest
 from auth import (
     verify_password,
-    get_password_hash,
     create_access_token,
     create_refresh_token,
     get_current_user,
@@ -46,13 +44,6 @@ async def login(
         data={"sub": str(user.id)}, expires_delta=access_token_expires
     )
     refresh_token = create_refresh_token(data={"sub": str(user.id)})
-    
-    # 디버깅: 토큰 생성 확인
-    print(f"[DEBUG] 로그인 성공: user_id={user.id}")
-    print(f"[DEBUG] SECRET_KEY (처음 20자): {SECRET_KEY[:20] if SECRET_KEY else 'None'}...")
-    print(f"[DEBUG] ALGORITHM: {ALGORITHM}")
-    print(f"[DEBUG] access_token (처음 50자): {access_token[:50]}...")
-    print(f"[DEBUG] refresh_token (처음 50자): {refresh_token[:50]}...")
     
     return TokenResponse(access=access_token, refresh=refresh_token)
 
@@ -98,22 +89,4 @@ async def refresh_token(
 async def logout(current_user: User = Depends(get_current_user)):
     """로그아웃 (클라이언트에서 토큰 삭제)"""
     return {"message": "로그아웃되었습니다"}
-
-@router.post("/{provider}")
-async def social_login(
-    provider: str,
-    code: str,
-    db: Session = Depends(get_db)
-):
-    """소셜 로그인 (카카오, 구글, 네이버)"""
-    # TODO: 소셜 로그인 구현
-    # 1. provider별로 OAuth 인증 코드를 액세스 토큰으로 교환
-    # 2. 액세스 토큰으로 사용자 정보 가져오기
-    # 3. 사용자가 없으면 생성, 있으면 로그인
-    # 4. JWT 토큰 발급
-    
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail=f"{provider} 소셜 로그인은 아직 구현되지 않았습니다"
-    )
 

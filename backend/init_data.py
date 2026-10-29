@@ -1,8 +1,16 @@
 # 초기 데이터 삽입 스크립트
-from database import SessionLocal
+import json
+
+from database import Base, SessionLocal, engine, ensure_day_mission_schema
 from models import CatalogMission, User
 from models import GroupMission, GroupMember
 from auth import get_password_hash
+
+
+def initialize_database():
+    """Create the schema before inserting local sample data."""
+    Base.metadata.create_all(bind=engine, checkfirst=True)
+    ensure_day_mission_schema()
 
 def init_catalog_missions():
     """미션 카탈로그 초기 데이터"""
@@ -14,19 +22,21 @@ def init_catalog_missions():
             return
         
         missions = [
-            CatalogMission(name="텀블러 사용하기", category="일상"),
-            CatalogMission(name="리필스테이션 이용", category="일상"),
-            CatalogMission(name="대중교통 이용하기", category="모빌리티"),
-            CatalogMission(name="에코백 사용하기", category="일상"),
-            CatalogMission(name="분리수거 철저히 하기", category="분리배출"),
-            CatalogMission(name="플라스틱 프리 챌린지", category="캠페인"),
-            CatalogMission(name="비닐봉투 거절하기", category="일상"),
-            CatalogMission(name="리유저블 식기 사용", category="일상"),
-            CatalogMission(name="잔반 남기지 않기", category="식생활"),
+            ("일회용품 줄이기", ["텀블러 사용하기", "장바구니 챙기기", "일회용 젓가락 안 받기"]),
+            ("리필 & 재사용", ["세제 리필하기", "공병 리필", "빈병 반납하기"]),
+            ("분리배출 개선", ["플라스틱 라벨 제거", "음식물 비우기", "투명페트 분리"]),
+            ("음식물 쓰레기 줄이기", ["남은 음식 리메이크", "유통기한 관리", "냉장고 비우기"]),
+            ("착한 소비", ["리필 제품 구매", "중고 거래", "로컬 브랜드 구매"]),
+            ("이동 & 에너지 절약", ["걸어서 이동", "자전거 출근", "콘센트 뽑기"]),
         ]
         
-        for mission in missions:
-            db.add(mission)
+        for category, submissions in missions:
+            db.add(
+                CatalogMission(
+                    category=category,
+                    submissions=json.dumps(submissions, ensure_ascii=False),
+                )
+            )
         
         db.commit()
         print(f"{len(missions)}개의 미션 카탈로그가 추가되었습니다.")
@@ -109,6 +119,7 @@ def init_group_missions():
 
 if __name__ == "__main__":
     print("초기 데이터 삽입을 시작합니다...")
+    initialize_database()
     init_catalog_missions()
     init_test_user()
     init_group_missions()

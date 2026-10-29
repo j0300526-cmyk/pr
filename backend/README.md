@@ -2,9 +2,9 @@
 
 FastAPI 기반 백엔드 서버
 
-## ⚠️ 중요: 가상환경 위치
+## 가상환경 위치
 
-**백엔드 코드는 `pr_11_15_VER1/backend/`에 있습니다.**
+백엔드 코드는 저장소의 `backend/` 디렉터리에 있습니다. 전체 설치·프런트엔드 실행·배포 안내는 [프로젝트 README](../README.md)를 참고하세요.
 
 가상환경은 다음 중 하나를 선택하세요:
 
@@ -36,6 +36,8 @@ cd ../backend  # 백엔드 폴더로 이동
 pip install -r requirements.txt
 ```
 
+테스트 도구까지 설치하려면 `pip install -r requirements-dev.txt`를 사용한 뒤, 프로젝트 루트에서 `pytest`를 실행하세요.
+
 ### 2. 환경 변수 설정
 
 `backend` 폴더에 `.env` 파일을 생성하고 다음 내용을 추가:
@@ -48,8 +50,8 @@ DATABASE_URL=sqlite:///./zero_waste.db
 # DATABASE_URL=postgresql://user:password@localhost:5432/zero_waste_db
 
 # JWT 설정
-SECRET_KEY=your-secret-key-change-in-production
-ALGORITHM=HS256
+JWT_SECRET_KEY=replace-with-a-long-random-secret
+JWT_ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 REFRESH_TOKEN_EXPIRE_DAYS=7
 
@@ -72,12 +74,7 @@ CREATE DATABASE zero_waste_db;
 python init_data.py
 ```
 
-또는 그룹/테스트 관련 추가 스크립트:
-
-```bash
-python seed_groups.py     # group_missions 테이블에 테스트 그룹 3개 추가
-python test_group_join.py # 그룹 / 멤버 현황 출력 (간단 점검용)
-```
+`python init_data.py`는 샘플 미션, 테스트 사용자, 샘플 그룹을 한 번에 생성합니다.
 
 ### 5. 서버 실행
 
@@ -99,7 +96,7 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ## 프로젝트 구조
 
 ```
-pr_11_15_VER1/
+project-root/
 ├── backend/          # 백엔드 코드 (여기!)
 │   ├── main.py
 │   ├── database.py

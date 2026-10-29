@@ -3,7 +3,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import engine, Base, ensure_day_mission_schema
 from routers import auth, users, missions, day_missions, group_missions, friends, ranking, utils, kakao_auth, personal_routine
-from routers import debug
 import os
 from dotenv import load_dotenv
 
@@ -39,7 +38,6 @@ _default_cors_origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:3000",
-    "https://zero-lime-two.vercel.app",  # Vercel 배포 도메인 (프로덕션)
 ]
 
 env_cors_origins = os.getenv("CORS_ORIGINS")
@@ -69,9 +67,6 @@ app.include_router(group_missions.router, prefix="/api")
 app.include_router(friends.router, prefix="/api")
 app.include_router(ranking.router, prefix="/api")
 app.include_router(utils.router, prefix="/api")
-# 디버깅 라우터 (개발 환경에서만)
-if os.getenv("ENV") != "production":
-    app.include_router(debug.router, prefix="/api")
 
 @app.get("/")
 async def root():

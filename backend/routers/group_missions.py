@@ -1,7 +1,7 @@
 # 그룹 미션 라우터
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, func
+from sqlalchemy import and_, func, select
 from database import get_db
 from models import GroupMission, GroupMember, GroupMissionCheck, User
 from schemas import (
@@ -102,9 +102,9 @@ async def get_recommended(
 ):
     """추천 그룹 미션 목록"""
     # 내가 참여하지 않은 그룹 중 인원이 3명 미만인 그룹
-    my_group_ids = db.query(GroupMember.group_mission_id).filter(
+    my_group_ids = select(GroupMember.group_mission_id).where(
         GroupMember.user_id == current_user.id
-    ).subquery()
+    )
     
     groups = db.query(GroupMission).filter(
         ~GroupMission.id.in_(my_group_ids)
@@ -160,12 +160,9 @@ async def join_group(
     db: Session = Depends(get_db)
 ):
     """그룹 미션 참여"""
-    print("[DEBUG] join_group called", "group_id=", group_id, "user_id=", current_user.id)
-
     # 1) 그룹 존재 확인
     group = db.query(GroupMission).filter(GroupMission.id == group_id).first()
     if group is None:
-        print("[DEBUG] group not found:", group_id)
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="그룹을 찾을 수 없습니다.",
@@ -179,7 +176,6 @@ async def join_group(
         )
     ).first()
     if existing:
-        print("[DEBUG] already joined:", "user_id=", current_user.id, "group_id=", group_id)
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="이미 이 그룹에 참여 중입니다.",
@@ -189,7 +185,6 @@ async def join_group(
         GroupMember.user_id == current_user.id
     ).count()
     if user_group_count >= MAX_GROUPS_PER_USER:
-        print("[DEBUG] user reached max groups:", current_user.id, user_group_count)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"사용자는 최대 {MAX_GROUPS_PER_USER}개의 그룹에만 참여할 수 있습니다"
@@ -213,8 +208,6 @@ async def join_group(
     db.add(membership)
     db.commit()
     db.refresh(membership)
-
-    print("[DEBUG] join success: membership_id=", membership.id)
 
     return group_mission_to_response(group, db)
 

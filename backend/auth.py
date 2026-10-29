@@ -14,8 +14,16 @@ from zoneinfo import ZoneInfo
 
 load_dotenv()
 
-SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
-ALGORITHM = os.getenv("ALGORITHM", "HS256")
+ENVIRONMENT = os.getenv("ENV", "development").lower()
+# Render uses the JWT_* names, while older local deployments used the shorter
+# names. Keep both names during the migration so existing environments work.
+SECRET_KEY = os.getenv("JWT_SECRET_KEY") or os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    if ENVIRONMENT in {"production", "prod"}:
+        raise RuntimeError("JWT_SECRET_KEY (or SECRET_KEY) must be set in production")
+    SECRET_KEY = "development-only-secret-key"
+
+ALGORITHM = os.getenv("JWT_ALGORITHM") or os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
 REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
 
@@ -63,42 +71,26 @@ def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     
-    # 디버깅: 토큰 확인
-    print("[DEBUG] get_current_user 호출됨")
-    print(f"[DEBUG] raw token (처음 50자): {token[:50] if token else 'None'}...")
-    print(f"[DEBUG] SECRET_KEY: {SECRET_KEY[:20] if SECRET_KEY else 'None'}...")
-    print(f"[DEBUG] ALGORITHM: {ALGORITHM}")
-    
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        print(f"[DEBUG] decoded payload: {payload}")
         
         # sub는 문자열로 저장되므로 정수로 변환
         user_id_str = payload.get("sub")
         if user_id_str is None:
-            print(f"[DEBUG] ❌ payload에 'sub'가 없음")
             raise credentials_exception
         
         user_id: int = int(user_id_str)
         token_type: str = payload.get("type")
         
-        print(f"[DEBUG] user_id: {user_id}, token_type: {token_type}")
-        
         if token_type != "access":
-            print(f"[DEBUG] ❌ 토큰 검증 실패: user_id={user_id}, token_type={token_type}")
             raise credentials_exception
-    except jwt.InvalidTokenError as e:
-        print(f"[DEBUG] ❌ JWT InvalidTokenError 발생: {repr(e)}")
+    except jwt.InvalidTokenError:
         raise credentials_exception
-    except Exception as e:
-        print(f"[DEBUG] ❌ 예상치 못한 에러: {repr(e)}")
+    except (TypeError, ValueError):
         raise credentials_exception
     
     user = db.query(User).filter(User.id == user_id).first()
     if user is None:
-        print(f"[DEBUG] ❌ 사용자를 찾을 수 없음: user_id={user_id}")
         raise credentials_exception
-    
-    print(f"[DEBUG] ✅ 인증 성공: user_id={user_id}, name={user.name}")
     return user
 

@@ -23,11 +23,6 @@ import { utilApi } from "./util";
  * 새로운 코드는 구조화된 API를 사용하는 것을 권장합니다.
  */
 export async function api(path: string, options?: RequestInit) {
-  // 개발 모드에서만 콘솔 로그
-  if (import.meta.env.DEV) {
-    console.log("[API]", path, options);
-  }
-
   // 기존 코드와의 호환성을 위한 라우팅
   // 구조화된 API를 사용하되, request()를 통해 토큰이 자동으로 포함됨
   if (path === "/users/me") {

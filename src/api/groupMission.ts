@@ -19,28 +19,28 @@ export const groupMissionApi = {
   },
 
   // 그룹 참여 (join)
-  join: async (id: number): Promise<any> => {
+  join: async (id: number): Promise<GroupMission> => {
     return request(`/group-missions/${id}/join`, {
       method: "POST",
     });
   },
 
   // (호환성) 기존 코드에서 groupMissionApi.joinGroup()로 접근하는 경우를 위해 alias 제공
-  joinGroup: async (id: number): Promise<any> => {
+  joinGroup: async (id: number): Promise<GroupMission> => {
     return request(`/group-missions/${id}/join`, {
       method: "POST",
     });
   },
 
   // 그룹 탈퇴 (leave)
-  leave: async (id: number): Promise<any> => {
+  leave: async (id: number): Promise<{ message: string }> => {
     return request(`/group-missions/${id}/leave`, {
       method: "DELETE",
     });
   },
 
   // (호환성) 기존 코드에서 groupMissionApi.leaveGroup()로 접근하는 경우를 위해 alias 제공
-  leaveGroup: async (id: number): Promise<any> => {
+  leaveGroup: async (id: number): Promise<{ message: string }> => {
     return request(`/group-missions/${id}/leave`, {
       method: "DELETE",
     });

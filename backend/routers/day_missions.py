@@ -374,9 +374,18 @@ async def add_mission(
     db.commit()
     db.refresh(day_mission)
     
-    # CatalogMission 테이블이 없으므로 관계 로드 제거
-    # 프론트엔드에서 하드코딩된 데이터를 사용하므로 mission_id와 sub_mission만 반환
-    return day_mission
+    return {
+        "id": day_mission.id,
+        "mission": {
+            "id": day_mission.mission_id,
+            "category": "",
+            "submissions": [],
+            "name": day_mission.sub_mission,
+        },
+        "sub_mission": day_mission.sub_mission,
+        "completed": day_mission.completed,
+        "created_at": day_mission.created_at,
+    }
 
 @router.delete("/{date_str}/missions/{mission_id}")
 async def delete_mission(
@@ -447,9 +456,18 @@ async def toggle_complete(
     db.commit()
     db.refresh(day_mission)
     
-    # CatalogMission 테이블이 없으므로 관계 로드 제거
-    # 프론트엔드에서 하드코딩된 데이터를 사용하므로 mission_id와 sub_mission만 반환
-    return day_mission
+    return {
+        "id": day_mission.id,
+        "mission": {
+            "id": day_mission.mission_id,
+            "category": "",
+            "submissions": [],
+            "name": day_mission.sub_mission,
+        },
+        "sub_mission": day_mission.sub_mission,
+        "completed": day_mission.completed,
+        "created_at": day_mission.created_at,
+    }
 
 def _prioritize_week_summary_route():
     week_path = "/days/week-summary"
