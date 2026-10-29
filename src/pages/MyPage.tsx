@@ -1,5 +1,20 @@
 import React from "react";
-import { Settings, Bell, Lock, User, X, ArrowLeft, Camera } from "lucide-react";
+import {
+  ArrowLeft,
+  Bell,
+  Camera,
+  Check,
+  Crown,
+  Database,
+  Flame,
+  Leaf,
+  Recycle,
+  Settings,
+  Sprout,
+  Trophy,
+  User,
+  X,
+} from "lucide-react";
 
 interface Props {
   userName: string;
@@ -36,6 +51,65 @@ export default function MyPage({
     "bg-indigo-300",
     "bg-cyan-300",
   ];
+
+  const rewards = [
+    {
+      id: "eco-sprout",
+      name: "에코 새싹",
+      description: "제로웨이스트 여정 시작",
+      icon: Sprout,
+      unlocked: true,
+      iconClass: "bg-emerald-100 text-emerald-600",
+      cardClass: "border-emerald-200 bg-emerald-50/70",
+    },
+    {
+      id: "first-step",
+      name: "첫 실천",
+      description: "미션 1개 완료",
+      icon: Leaf,
+      unlocked: totalMissionsCount >= 1,
+      iconClass: "bg-lime-100 text-lime-600",
+      cardClass: "border-lime-200 bg-lime-50/70",
+    },
+    {
+      id: "routine-starter",
+      name: "루틴 스타터",
+      description: "3일 연속 달성",
+      icon: Flame,
+      unlocked: currentStreak >= 3,
+      iconClass: "bg-orange-100 text-orange-500",
+      cardClass: "border-orange-200 bg-orange-50/70",
+    },
+    {
+      id: "green-maker",
+      name: "그린 메이커",
+      description: "미션 10개 완료",
+      icon: Recycle,
+      unlocked: totalMissionsCount >= 10,
+      iconClass: "bg-teal-100 text-teal-600",
+      cardClass: "border-teal-200 bg-teal-50/70",
+    },
+    {
+      id: "weekly-champion",
+      name: "위클리 챔피언",
+      description: "7일 연속 달성",
+      icon: Trophy,
+      unlocked: currentStreak >= 7,
+      iconClass: "bg-amber-100 text-amber-600",
+      cardClass: "border-amber-200 bg-amber-50/70",
+    },
+    {
+      id: "zero-hero",
+      name: "제로 히어로",
+      description: "미션 30개 · 14일 연속",
+      icon: Crown,
+      unlocked: totalMissionsCount >= 30 && currentStreak >= 14,
+      iconClass: "bg-violet-100 text-violet-600",
+      cardClass: "border-violet-200 bg-violet-50/70",
+    },
+  ];
+
+  const unlockedRewardCount = rewards.filter((reward) => reward.unlocked).length;
 
   const handleEditProfile = () => {
     setShowSettings(false);
@@ -92,19 +166,56 @@ export default function MyPage({
           </div>
 
           <div className="bg-gray-50 rounded-3xl p-4">
-            <h4 className="font-bold mb-3">내 리워드</h4>
-            <div className="grid grid-cols-3 gap-3">
-              {Array.from({ length: 9 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="aspect-square rounded-xl border border-gray-200 flex items-center justify-center text-sm text-gray-500"
-                >
-                  배지 {i + 1}
-                </div>
-              ))}
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h4 className="font-bold">내 리워드</h4>
+                <p className="text-xs text-gray-500 mt-1">작은 실천이 모여 뱃지가 돼요</p>
+              </div>
+              <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-green-600 shadow-sm">
+                {unlockedRewardCount}/{rewards.length} 획득
+              </span>
             </div>
-            <p className="text-xs text-gray-400 mt-2 text-center">
-              * 목업 미리보기 — 실제 뱃지는 API 연동 시 교체됩니다
+            <div className="grid grid-cols-2 gap-3">
+              {rewards.map((reward) => {
+                const Icon = reward.icon;
+                return (
+                  <div
+                    key={reward.id}
+                    className={`relative min-h-36 rounded-2xl border p-3 transition ${
+                      reward.unlocked
+                        ? reward.cardClass
+                        : "border-gray-200 bg-white opacity-55 grayscale"
+                    }`}
+                  >
+                    {reward.unlocked && (
+                      <span className="absolute right-2.5 top-2.5 flex h-5 w-5 items-center justify-center rounded-full bg-green-500 text-white">
+                        <Check size={13} strokeWidth={3} />
+                      </span>
+                    )}
+                    <div
+                      className={`mb-3 flex h-11 w-11 items-center justify-center rounded-2xl ${
+                        reward.unlocked ? reward.iconClass : "bg-gray-100 text-gray-400"
+                      }`}
+                    >
+                      <Icon size={24} strokeWidth={2.2} />
+                    </div>
+                    <p className="text-sm font-bold text-gray-800">{reward.name}</p>
+                    <p className="mt-1 text-[11px] leading-4 text-gray-500">
+                      {reward.description}
+                    </p>
+                    <span
+                      className={`mt-3 inline-block text-[10px] font-bold ${
+                        reward.unlocked ? "text-green-600" : "text-gray-400"
+                      }`}
+                    >
+                      {reward.unlocked ? "획득 완료" : "아직 잠겨 있어요"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-xs text-gray-400 mt-3 text-center">
+              미션을 완료하고 연속 기록을 이어가 보세요
             </p>
           </div>
         </div>
@@ -155,11 +266,11 @@ export default function MyPage({
 
                 <button className="w-full flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 transition">
                   <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
-                    <Lock size={20} className="text-purple-600" />
+                    <Database size={20} className="text-purple-600" />
                   </div>
                   <div className="text-left">
-                    <div className="font-bold text-gray-800">개인정보 및 보안</div>
-                    <div className="text-xs text-gray-500">비밀번호 변경, 개인정보 관리</div>
+                    <div className="font-bold text-gray-800">데모 데이터 안내</div>
+                    <div className="text-xs text-gray-500">데모 기록은 일정 시간 후 초기화될 수 있어요</div>
                   </div>
                 </button>
               </div>
