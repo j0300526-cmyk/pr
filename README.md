@@ -1,118 +1,113 @@
-# Zero Waste Routine
+<div align="center">
 
-개인 실천 미션과 그룹 챌린지를 함께 관리하는 제로웨이스트 루틴 앱입니다. React/Vite 프런트엔드와 FastAPI 백엔드로 구성되어 있습니다.
+# 🌱 Zero Waste Routine
+
+**매일의 친환경 실천을 루틴으로 만들고, 그룹과 함께 이어가는 모바일 웹 서비스**
+
+[![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Vercel](https://img.shields.io/badge/Vercel-Deployed-000000?logo=vercel&logoColor=white)](https://zero-waste-routine.vercel.app/)
+
+### [🚀 Live Demo](https://zero-waste-routine.vercel.app/)
+
+</div>
+
+## Preview
+
+<table>
+  <tr>
+    <td align="center"><b>홈 · 개인 루틴</b></td>
+    <td align="center"><b>그룹 미션</b></td>
+    <td align="center"><b>리더보드</b></td>
+    <td align="center"><b>마이페이지</b></td>
+  </tr>
+  <tr>
+    <td><img src="./docs/screenshots/home.png" alt="홈 화면" width="220" /></td>
+    <td><img src="./docs/screenshots/groups.png" alt="그룹 미션 화면" width="220" /></td>
+    <td><img src="./docs/screenshots/ranking.png" alt="리더보드 화면" width="220" /></td>
+    <td><img src="./docs/screenshots/profile.png" alt="마이페이지 화면" width="220" /></td>
+  </tr>
+</table>
+
+## 프로젝트 소개
+
+환경을 위한 행동은 거창한 목표보다 작은 실천을 꾸준히 이어가는 것이 중요합니다. Zero Waste Routine은 일별 미션과 주간 루틴을 기록하고, 그룹 챌린지와 랭킹을 통해 친환경 행동을 자연스럽게 지속할 수 있도록 만든 서비스입니다.
+
+포트폴리오 데모는 로그인 없이 바로 체험할 수 있는 공용 게스트 모드로 동작합니다.
 
 ## 주요 기능
 
-- 일별 미션 조회·추가·완료 처리 및 주간 루틴 관리
-- 그룹 미션 생성, 참여, 초대 및 완료 체크
-- 친구 추천과 초대 수락·거절
-- 로그인 없이 바로 사용하는 공용 게스트 데모
-- 개인 및 그룹 랭킹
+- **개인 루틴** — 날짜별 친환경 미션 추가, 완료 체크, 주간 루틴 관리
+- **그룹 챌린지** — 그룹 생성·참여, 참여자 확인, 공동 미션 수행
+- **친구 초대** — 친구 추천과 그룹 초대, 수락·거절 흐름
+- **리더보드** — 개인·그룹별 친환경 실천 점수와 순위 확인
+- **프로필** — 닉네임, 소개, 프로필 색상과 활동 통계 관리
+- **게스트 데모** — 회원가입이나 로그인 없이 핵심 기능 즉시 체험
 
-## 기술 구성
+## 기술 스택
 
 | 영역 | 기술 |
 | --- | --- |
-| 프런트엔드 | React 18, TypeScript, Vite, Tailwind CSS |
-| 백엔드 | Python, FastAPI, SQLAlchemy, Pydantic |
-| 데이터베이스 | SQLite(로컬·무료 데모) 또는 PostgreSQL(영구 저장) |
-| 접근 방식 | 로그인 없는 공용 게스트 모드 |
+| Frontend | React 18, TypeScript, Vite, Tailwind CSS |
+| Backend | Python, FastAPI, SQLAlchemy, Pydantic |
+| Database | SQLite (데모), PostgreSQL 호환 |
+| Deployment | Vercel Services, Vercel Functions |
+| Test | Pytest, FastAPI TestClient |
 
-## 빠른 시작
+## 아키텍처
 
-### 1. 저장소 받기
-
-```bash
-git clone https://github.com/j0300526-cmyk/pr.git
-cd pr
+```text
+Browser
+   ├─ /          → Vite + React 정적 프런트엔드
+   └─ /api/*     → FastAPI Vercel Function
+                         └─ SQLAlchemy → SQLite / PostgreSQL
 ```
 
-### 2. 백엔드 실행
+프런트엔드와 백엔드를 하나의 Vercel 프로젝트로 배포하며, `/api/*` 요청만 FastAPI 서비스로 전달합니다.
 
-Python 3.11 이상을 권장합니다.
+## 로컬 실행
+
+### 1. 백엔드
 
 ```bash
 cd backend
 python -m venv .venv
-source .venv/bin/activate       # Windows: .venv\Scripts\activate
+
+# macOS / Linux
+source .venv/bin/activate
+
+# Windows
+.venv\Scripts\activate
+
 pip install -r requirements.txt
-```
-
-`backend/.env` 파일을 만들고 로컬 설정을 추가합니다.
-
-```bash
-cp .env.example .env
-```
-
-```env
-DATABASE_URL=sqlite:///./zero_waste.db
-CORS_ORIGINS=http://localhost:5173
-```
-
-처음 실행하는 경우 샘플 미션·사용자·그룹을 생성합니다.
-
-```bash
 python init_data.py
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+uvicorn main:app --reload --port 8000
 ```
 
-별도 로그인 없이 공용 게스트 계정으로 바로 사용할 수 있습니다.
-
-API 문서는 서버 실행 후 [http://localhost:8000/docs](http://localhost:8000/docs)에서 볼 수 있습니다.
-
-### 3. 프런트엔드 실행
-
-새 터미널에서 프로젝트 루트로 돌아와 실행합니다.
+### 2. 프런트엔드
 
 ```bash
 npm ci
 npm run dev
 ```
 
-기본 주소는 [http://localhost:5173](http://localhost:5173)입니다. 개발 서버는 `/api` 요청을 `http://localhost:8000`으로 프록시합니다.
+- Web: http://localhost:5173
+- API Docs: http://localhost:8000/docs
 
-백엔드 주소를 직접 지정해야 하면 프로젝트 루트에 `.env.local` 파일을 만듭니다.
-
-```bash
-cp .env.example .env.local
-```
-
-```env
-VITE_API_BASE_URL=http://localhost:8000/api
-```
-
-## 테스트와 빌드
-
-프로젝트 루트에서 실행합니다.
+## 테스트 및 빌드
 
 ```bash
-# 백엔드 테스트 도구 설치
-source backend/.venv/bin/activate
 pip install -r backend/requirements-dev.txt
-
-# API 테스트
 pytest
-
-# 프런트엔드 프로덕션 빌드
 npm run build
 ```
 
-테스트는 별도 SQLite 데이터베이스를 사용하려면 다음처럼 실행할 수 있습니다.
+현재 백엔드 테스트 6개와 프런트엔드 프로덕션 빌드를 통과합니다.
 
-```bash
-DATABASE_URL=sqlite:////tmp/zero-waste-test.sqlite pytest
-```
+## 데모 데이터 안내
 
-## 환경 변수
-
-| 변수 | 용도 | 필수 여부 |
-| --- | --- | --- |
-| `DATABASE_URL` | SQLite 또는 PostgreSQL 연결 문자열. 생략 시 로컬 SQLite 사용 | 아니요 |
-| `CORS_ORIGINS` | 쉼표로 구분한 허용 프런트엔드 주소 | 배포 시 예 |
-| `VITE_API_BASE_URL` | 프런트엔드 API 주소 | 아니요 |
-
-DB 비밀번호 같은 비밀값은 커밋하지 마세요. `.env`와 `.env.local`은 이미 Git에서 제외됩니다.
+배포본은 별도 유료 데이터베이스 없이 실행하기 위해 Vercel Function의 임시 SQLite를 사용합니다. 새 함수 인스턴스가 생성되면 사용자가 추가한 데이터가 초기화될 수 있으며, 영구 저장이 필요한 운영 환경에서는 `DATABASE_URL`에 PostgreSQL을 연결할 수 있습니다.
 
 ## 프로젝트 구조
 
@@ -120,17 +115,13 @@ DB 비밀번호 같은 비밀값은 커밋하지 마세요. `.env`와 `.env.loca
 .
 ├── src/                    # React 프런트엔드
 │   ├── api/                # API 클라이언트
-│   ├── components/         # UI 컴포넌트
-│   └── pages/              # 화면
+│   ├── components/         # 공통 UI 컴포넌트
+│   └── pages/              # 주요 화면
 ├── backend/
 │   ├── routers/            # FastAPI 라우터
 │   ├── tests/              # API 테스트
 │   ├── models.py           # SQLAlchemy 모델
-│   └── main.py             # FastAPI 앱 진입점
-├── pytest.ini              # 테스트 수집 설정
-└── package.json
+│   └── main.py             # FastAPI 진입점
+├── docs/screenshots/       # README용 실제 서비스 화면
+└── vercel.json             # Vercel 멀티 서비스 설정
 ```
-
-## 배포
-
-`vercel.json`은 Vite 프런트엔드와 FastAPI 백엔드를 하나의 Vercel 프로젝트로 배포합니다. 환경변수 없이도 Hobby 플랜에서 공용 데모로 실행되며, Vercel에서는 `/tmp`의 임시 SQLite를 사용하므로 새 함수 인스턴스가 생성되면 데이터가 초기화될 수 있습니다. 영구 저장이 필요하면 무료 PostgreSQL 서비스의 `DATABASE_URL`을 Vercel 환경변수로 연결하세요.

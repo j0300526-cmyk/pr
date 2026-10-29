@@ -57,12 +57,12 @@ export default function GroupManagePage({
 
   return (
     <div className="bg-white px-6 py-4 rounded-3xl">
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col items-start gap-3 mb-6">
         <h2 className="text-2xl font-bold">그룹 미션 관리</h2>
         {onCreateGroup && (
           <button
             onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-full text-sm font-medium hover:bg-green-600 transition-colors"
+            className="flex w-full items-center justify-center gap-2 px-4 py-2 bg-green-500 text-white rounded-full text-sm font-medium hover:bg-green-600 transition-colors"
           >
             <Plus size={18} />
             그룹 만들기
