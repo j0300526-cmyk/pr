@@ -4,7 +4,6 @@ import HomePage from "./pages/Home";
 import GroupManagePage from "./pages/GroupManage";
 import InvitePage from "./pages/Invite";
 import MyPage from "./pages/MyPage";
-import LoginPage from "./pages/Login";
 import BottomTab from "./components/BottomTab";
 import {
   CatalogMission,
@@ -36,9 +35,8 @@ import {
 import { calculateStreak, countTotalMissions } from "./utils/missions";
 import { INITIAL_FRIENDS } from "./constants/users";
 import { STORAGE_KEYS } from "./constants/storage";
-import { api, authApi, friendApi, groupMissionApi } from "./api";
+import { api, friendApi, groupMissionApi } from "./api";
 import type { DayCompletionSummary } from "./api/types";
-import { authStorageKeys, useAuthBootstrap } from "./hooks/useAuthBootstrap";
 import RankingPage from "./pages/Ranking"; // 파일명 맞춰서
 import {
   saveDayMissions,
@@ -172,7 +170,7 @@ function App() {
     setErrorMessage(message);
     setTimeout(() => setErrorMessage(""), 3000);
   }, []);
-  const { booting, isAuthed, setIsAuthed } = useAuthBootstrap({ onError: showError });
+  const isAuthed = true;
 
   const getWeekDates = useCallback((iso: string | null) => {
     if (!iso) return [];
@@ -935,19 +933,6 @@ function App() {
     }
   };
 
-  const logout = async () => {
-    try {
-      await authApi.logout();
-    } catch {
-      // 서버 로그아웃 실패는 로컬 로그아웃을 막지 않는다.
-    } finally {
-      localStorage.removeItem("access");
-      localStorage.removeItem("refresh");
-      sessionStorage.setItem(authStorageKeys.autoLoginDisabled, "true");
-    }
-    setIsAuthed(false);
-  };
-
   const toggleInvitee = (id: number) => {
     setSelectedInvitees((prev) =>
       prev.includes(id) ? prev.filter((value) => value !== id) : [...prev, id]
@@ -1023,14 +1008,6 @@ function App() {
   if (!isAuthed) return;
 
   const loadInitialData = async () => {
-    // 토큰이 있는지 확인
-    const token = localStorage.getItem("access");
-    if (!token) {
-      console.warn("토큰이 없습니다. 로그인을 다시 시도해주세요.");
-      setIsAuthed(false);
-      return;
-    }
-
     let serverDate: string | undefined;
     
     try {
@@ -1077,15 +1054,6 @@ function App() {
       }
     } catch (error: any) {
       console.error("초기 데이터 로드 실패 (users/me):", error);
-      
-      // 401 에러인 경우 (인증 실패)
-      if (error?.message?.includes("인증") || error?.message?.includes("401")) {
-        console.warn("인증 실패 - 로그인 페이지로 이동");
-        localStorage.removeItem("access");
-        localStorage.removeItem("refresh");
-        setIsAuthed(false);
-        return;
-      }
       
       // 다른 에러는 무시하고 계속 진행 (로컬 데이터 사용)
     }
@@ -1162,32 +1130,6 @@ function App() {
   }, [myGroupMissions, selectedInviteGroupId]);
 
   // ===== 렌더 =====
-  if (booting) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg">Loading...</div>
-      </div>
-    );
-  }
-
-  if (!isAuthed) {
-    return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-        <div
-          className="w-full max-w-sm bg-white rounded-3xl shadow-xl flex flex-col"
-          style={{ aspectRatio: "9/16", maxHeight: "90vh" }}
-        >
-          <LoginPage
-            onSuccess={() => {
-              sessionStorage.removeItem(authStorageKeys.autoLoginDisabled);
-              setIsAuthed(true);
-            }}
-          />
-        </div>
-      </div>
-    );
-  }
-
   const totalMissionsCount = countTotalMissions(missions);
   const currentStreak = calculateStreak(missions);
 
@@ -1271,7 +1213,6 @@ function App() {
               currentStreak={currentStreak}
               profileColor={profileColor}
               onSaveProfile={saveUserProfile}
-              onLogout={logout}
             />
           )}
         </div>

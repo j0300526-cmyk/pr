@@ -12,8 +12,16 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-# 환경 변수에서 직접 DATABASE_URL 읽기
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./zero_waste.db")
+# Vercel Functions only provide writable temporary storage under /tmp.
+# This keeps the login-free demo fully free while local development still uses
+# the project directory. Demo data is recreated when a new function instance
+# starts, so this is intentionally not durable storage.
+DEFAULT_DATABASE_URL = (
+    "sqlite:////tmp/zero_waste.db"
+    if os.getenv("VERCEL")
+    else "sqlite:///./zero_waste.db"
+)
+DATABASE_URL = os.getenv("DATABASE_URL", DEFAULT_DATABASE_URL)
 SQL_ECHO = os.getenv("SQL_ECHO", "false").lower() in {"1", "true", "yes", "on"}
 
 # SQLite 사용 시 check_same_thread=False 필요

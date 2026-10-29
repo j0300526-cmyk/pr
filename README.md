@@ -7,7 +7,7 @@
 - 일별 미션 조회·추가·완료 처리 및 주간 루틴 관리
 - 그룹 미션 생성, 참여, 초대 및 완료 체크
 - 친구 추천과 초대 수락·거절
-- 이메일/비밀번호 로그인과 카카오 로그인
+- 로그인 없이 바로 사용하는 공용 게스트 데모
 - 개인 및 그룹 랭킹
 
 ## 기술 구성
@@ -16,8 +16,8 @@
 | --- | --- |
 | 프런트엔드 | React 18, TypeScript, Vite, Tailwind CSS |
 | 백엔드 | Python, FastAPI, SQLAlchemy, Pydantic |
-| 데이터베이스 | SQLite(로컬) 또는 PostgreSQL(배포) |
-| 인증 | JWT, 카카오 OAuth |
+| 데이터베이스 | SQLite(로컬·무료 데모) 또는 PostgreSQL(영구 저장) |
+| 접근 방식 | 로그인 없는 공용 게스트 모드 |
 
 ## 빠른 시작
 
@@ -47,8 +47,6 @@ cp .env.example .env
 
 ```env
 DATABASE_URL=sqlite:///./zero_waste.db
-JWT_SECRET_KEY=change-this-to-a-long-random-value
-JWT_ALGORITHM=HS256
 CORS_ORIGINS=http://localhost:5173
 ```
 
@@ -59,7 +57,7 @@ python init_data.py
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-샘플 계정은 `test@example.com` / `test1234`입니다. 개발 용도로만 사용하고, 배포 환경에서는 반드시 제거하거나 별도 계정을 사용하세요.
+별도 로그인 없이 공용 게스트 계정으로 바로 사용할 수 있습니다.
 
 API 문서는 서버 실행 후 [http://localhost:8000/docs](http://localhost:8000/docs)에서 볼 수 있습니다.
 
@@ -82,30 +80,7 @@ cp .env.example .env.local
 
 ```env
 VITE_API_BASE_URL=http://localhost:8000/api
-# 개발 서버에서는 샘플 계정으로 자동 로그인됩니다. 필요 시 false로 끌 수 있습니다.
-VITE_AUTO_LOGIN=true
-# 기본값: test@example.com / test1234
-# VITE_DEMO_EMAIL=test@example.com
-# VITE_DEMO_PASSWORD=test1234
 ```
-
-자동 로그인은 개발 모드에서만 작동하며, 로그아웃을 누르면 해당 브라우저 탭에서는 다시 자동 로그인하지 않습니다.
-
-## 카카오 로그인 설정
-
-카카오 로그인을 사용하려면 다음 변수를 설정하세요.
-
-```env
-# backend/.env
-KAKAO_CLIENT_ID=your-kakao-rest-api-key
-KAKAO_REDIRECT_URI=http://localhost:5173/auth/kakao/callback
-
-# .env.local
-VITE_KAKAO_CLIENT_ID=your-kakao-rest-api-key
-VITE_KAKAO_REDIRECT_URI=http://localhost:5173/auth/kakao/callback
-```
-
-카카오 개발자 콘솔에도 동일한 리디렉션 URI를 등록해야 합니다. Google·네이버 로그인 버튼은 현재 연결되어 있지 않습니다.
 
 ## 테스트와 빌드
 
@@ -133,20 +108,11 @@ DATABASE_URL=sqlite:////tmp/zero-waste-test.sqlite pytest
 
 | 변수 | 용도 | 필수 여부 |
 | --- | --- | --- |
-| `DATABASE_URL` | SQLite 또는 PostgreSQL 연결 문자열 | 예 |
-| `JWT_SECRET_KEY` | JWT 서명 키. 운영 환경에서는 필수 | 예 |
-| `JWT_ALGORITHM` | JWT 알고리즘. 기본값은 `HS256` | 아니요 |
+| `DATABASE_URL` | SQLite 또는 PostgreSQL 연결 문자열. 생략 시 로컬 SQLite 사용 | 아니요 |
 | `CORS_ORIGINS` | 쉼표로 구분한 허용 프런트엔드 주소 | 배포 시 예 |
-| `KAKAO_CLIENT_ID` | 카카오 REST API 키 | 카카오 로그인 사용 시 |
-| `KAKAO_REDIRECT_URI` | 카카오 OAuth 콜백 주소 | 카카오 로그인 사용 시 |
 | `VITE_API_BASE_URL` | 프런트엔드 API 주소 | 아니요 |
-| `VITE_AUTO_LOGIN` | 개발 모드의 샘플 계정 자동 로그인 (`false`로 비활성화) | 아니요 |
-| `VITE_DEMO_EMAIL` | 자동 로그인에 사용할 개발용 이메일 | 아니요 |
-| `VITE_DEMO_PASSWORD` | 자동 로그인에 사용할 개발용 비밀번호 | 아니요 |
-| `VITE_KAKAO_CLIENT_ID` | 프런트엔드 카카오 앱 키 | 카카오 로그인 사용 시 |
-| `VITE_KAKAO_REDIRECT_URI` | 프런트엔드 카카오 콜백 주소 | 카카오 로그인 사용 시 |
 
-`JWT_SECRET_KEY`, DB 비밀번호, OAuth 키는 커밋하지 마세요. `.env`와 `.env.local`은 이미 Git에서 제외됩니다.
+DB 비밀번호 같은 비밀값은 커밋하지 마세요. `.env`와 `.env.local`은 이미 Git에서 제외됩니다.
 
 ## 프로젝트 구조
 
@@ -167,4 +133,4 @@ DATABASE_URL=sqlite:////tmp/zero-waste-test.sqlite pytest
 
 ## 배포
 
-Render 배포 설정은 [`render.yaml`](./render.yaml)에 포함되어 있습니다. NCP 배포 절차는 [`NCP_DEPLOY.md`](./NCP_DEPLOY.md)를 참고하세요. 배포 전에 `JWT_SECRET_KEY`, `DATABASE_URL`, `CORS_ORIGINS`, 카카오 OAuth 설정을 실제 환경 값으로 교체해야 합니다.
+`vercel.json`은 Vite 프런트엔드와 FastAPI 백엔드를 하나의 Vercel 프로젝트로 배포합니다. 환경변수 없이도 Hobby 플랜에서 공용 데모로 실행되며, Vercel에서는 `/tmp`의 임시 SQLite를 사용하므로 새 함수 인스턴스가 생성되면 데이터가 초기화될 수 있습니다. 영구 저장이 필요하면 무료 PostgreSQL 서비스의 `DATABASE_URL`을 Vercel 환경변수로 연결하세요.

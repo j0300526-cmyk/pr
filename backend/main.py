@@ -1,8 +1,10 @@
 # FastAPI 메인 애플리케이션
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from database import engine, Base, ensure_day_mission_schema
-from routers import auth, users, missions, day_missions, group_missions, friends, ranking, utils, kakao_auth, personal_routine
+from database import engine, Base, SessionLocal, ensure_day_mission_schema
+from models import CatalogMission, GroupMember, GroupMission, User
+from routers import auth, users, missions, day_missions, group_missions, friends, ranking, utils, personal_routine
+import json
 import os
 from dotenv import load_dotenv
 
@@ -26,6 +28,57 @@ except Exception as e:
         raise
 
 ensure_day_mission_schema()
+
+
+def ensure_demo_data():
+    """Create the shared guest account and starter content for fresh instances."""
+    db = SessionLocal()
+    try:
+        guest = db.query(User).filter(User.email == "guest@zero-waste.local").first()
+        if guest is None:
+            guest = User(
+                email="guest@zero-waste.local",
+                name="Guest",
+                profile_color="bg-green-300",
+                bio="Login-free public demo",
+            )
+            db.add(guest)
+            db.flush()
+
+        if db.query(CatalogMission).count() == 0:
+            starter_missions = [
+                ("Reduce disposables", ["Use a tumbler", "Bring a reusable bag", "Skip disposable cutlery"]),
+                ("Reuse and repair", ["Repair one item", "Share an unused item", "Buy second-hand"]),
+                ("Recycle better", ["Remove labels", "Rinse containers", "Sort clear bottles"]),
+                ("Save food", ["Plan leftovers", "Check expiration dates", "Empty the fridge first"]),
+                ("Choose local", ["Buy a local product", "Visit a refill shop", "Choose minimal packaging"]),
+                ("Move greener", ["Walk a short trip", "Ride a bicycle", "Unplug one unused device"]),
+            ]
+            db.add_all(
+                CatalogMission(category=category, submissions=json.dumps(items))
+                for category, items in starter_missions
+            )
+
+        if db.query(GroupMission).count() == 0:
+            group = GroupMission(
+                name="Zero Waste Starters",
+                color="bg-green-300",
+                created_by=guest.id,
+            )
+            db.add(group)
+            db.flush()
+            db.add(GroupMember(group_mission_id=group.id, user_id=guest.id))
+
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Failed to initialize demo data")
+        raise
+    finally:
+        db.close()
+
+
+ensure_demo_data()
 
 app = FastAPI(
     title="Zero Waste Routine API",
@@ -58,7 +111,6 @@ app.add_middleware(
 
 # 라우터 등록
 app.include_router(auth.router, prefix="/api")
-app.include_router(kakao_auth.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
 app.include_router(missions.router, prefix="/api")
 app.include_router(day_missions.router, prefix="/api")

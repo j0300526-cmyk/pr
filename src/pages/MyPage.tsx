@@ -1,5 +1,5 @@
 import React from "react";
-import { Settings, LogOut, Bell, Lock, User, X, ArrowLeft, Camera } from "lucide-react";
+import { Settings, Bell, Lock, User, X, ArrowLeft, Camera } from "lucide-react";
 
 interface Props {
   userName: string;
@@ -7,7 +7,6 @@ interface Props {
   currentStreak: number;
   profileColor: string;
   onSaveProfile: (name: string, color: string, bio: string) => void;
-  onLogout?: () => void;
 }
 
 
@@ -17,7 +16,6 @@ export default function MyPage({
   currentStreak,
   profileColor: initialColor,
   onSaveProfile,
-  onLogout,
 }: Props) {
   const [currentPage, setCurrentPage] = React.useState("mypage");
   const [showSettings, setShowSettings] = React.useState(false);
@@ -38,19 +36,6 @@ export default function MyPage({
     "bg-indigo-300",
     "bg-cyan-300",
   ];
-
-  const handleLogout = async () => {
-    if (window.confirm("정말로 로그아웃하시겠습니까?")) {
-      setShowSettings(false);
-      if (onLogout) {
-        await onLogout();
-      } else {
-        localStorage.removeItem("access");
-        localStorage.removeItem("refresh");
-        window.location.reload();
-      }
-    }
-  };
 
   const handleEditProfile = () => {
     setShowSettings(false);
@@ -178,14 +163,6 @@ export default function MyPage({
                   </div>
                 </button>
               </div>
-
-              <button
-                onClick={handleLogout}
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-3xl bg-red-50 hover:bg-red-100 transition text-red-600 font-medium"
-              >
-                <LogOut size={20} />
-                로그아웃
-              </button>
 
               <button
                 onClick={() => setShowSettings(false)}

@@ -1,7 +1,6 @@
 // API 모듈 통합 export
 export * from "./types";
 export * from "./request";
-export { authApi } from "./auth";
 export { userApi } from "./user";
 export { missionApi } from "./mission";
 export { dayMissionApi } from "./dayMission";
